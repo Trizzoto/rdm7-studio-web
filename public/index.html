@@ -4,7 +4,7 @@
 <head>
     <title>RDM Studio Online — Try the RDM-7 Dashboard Designer</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=1024">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.3, maximum-scale=5.0, user-scalable=yes">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1957,84 +1957,77 @@
         .dm-value { font-family: 'JetBrains Mono', monospace; }
         .dm-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
         .dm-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
-        /* ── Mobile burger menu ────────────────────────────── */
-        @media (max-width: 1024px) {
-          .mobile-burger {
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            cursor: pointer;
-            color: var(--text);
-            font-size: 18px;
-            flex-shrink: 0;
-          }
-          .header-items-desktop {
-            display: none !important;
-          }
-          .mobile-menu-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 9998;
-          }
-          .mobile-menu-overlay.active {
-            display: block;
-          }
-          .mobile-menu-panel {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            width: 280px;
-            background: var(--bg);
-            border-right: 1px solid var(--border);
-            z-index: 9999;
-            overflow-y: auto;
-            padding: 16px;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .mobile-menu-panel.active {
-            display: flex;
-          }
-          .mobile-menu-panel select,
-          .mobile-menu-panel button,
-          .mobile-menu-panel .btn {
-            width: 100%;
-            margin: 2px 0;
-            font-size: 12px;
-          }
-          .mobile-menu-panel .header-divider {
-            border-top: 1px solid var(--border);
-            margin: 8px 0;
-            height: 0;
-            width: 100%;
-          }
-          .sidebar {
-            position: fixed !important;
-            right: -300px;
-            top: 0;
-            bottom: 0;
-            width: 300px !important;
-            z-index: 9997;
-            transition: right 0.3s ease;
-            box-shadow: -4px 0 20px rgba(0,0,0,0.3);
-          }
-          .sidebar.mobile-open {
-            right: 0 !important;
-          }
+        /* ── Mobile responsive ────────────────────────────── */
+        .mobile-burger { display: none; }
+        .mobile-menu-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; }
+        .mobile-menu-overlay.active { display: block; }
+        .mobile-menu-panel {
+          display: none; position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
+          background: var(--bg); border-right: 1px solid var(--border); z-index: 9999;
+          overflow-y: auto; padding: 16px; flex-direction: column; gap: 6px;
         }
-        @media (min-width: 1025px) {
-          .mobile-burger { display: none !important; }
-          .mobile-menu-overlay { display: none !important; }
-          .mobile-menu-panel { display: none !important; }
+        .mobile-menu-panel.active { display: flex; }
+        .mobile-menu-panel select, .mobile-menu-panel button, .mobile-menu-panel .btn {
+          width: 100%; margin: 2px 0; font-size: 12px; min-height: 36px;
+        }
+        .mobile-menu-panel .header-divider {
+          border-top: 1px solid var(--border); margin: 6px 0; height: 0; width: 100%;
+        }
+        .mobile-sidebar-fab {
+          display: none; position: fixed; right: 12px; bottom: 12px; z-index: 9996;
+          width: 50px; height: 50px; border-radius: 50%; background: var(--accent, #3b82f6);
+          color: white; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.3);
+          cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); font-size: 20px;
+        }
+        @media (max-width: 900px) {
+          .mobile-burger {
+            display: flex !important; align-items: center; justify-content: center;
+            width: 38px; height: 38px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; color: var(--text); font-size: 20px; flex-shrink: 0;
+          }
+          .header-items-desktop { display: none !important; }
+          .mobile-sidebar-fab { display: flex !important; }
+
+          /* Allow body to scroll on mobile */
+          body { overflow: auto !important; overflow-x: auto !important; }
+          html { overflow: auto !important; }
+
+          /* Header compact */
+          header {
+            height: auto !important; min-height: 44px; padding: 6px 10px !important;
+            position: sticky !important; top: 0; z-index: 100;
+          }
+
+          /* Workspace takes full width, allow horizontal scroll for canvas */
+          .workspace {
+            flex-direction: column !important;
+            min-height: auto !important;
+            overflow: visible !important;
+          }
+
+          /* Main stage full width, horizontally scrollable for the 800px canvas */
+          .main-stage, main.main-stage {
+            width: 100vw !important; max-width: 100vw !important; flex: none !important;
+            overflow-x: scroll !important; overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            min-height: 500px !important;
+          }
+
+          /* Hide the resize handle */
+          .sidebar-resize { display: none !important; }
+
+          /* Signal list hidden on mobile */
+          #sigList { display: none !important; }
+
+          /* Sidebar as slide-over from right */
+          .sidebar, .sidebar-right {
+            position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
+            width: 300px !important; min-width: 300px !important; max-width: 300px !important;
+            z-index: 9997; transition: right 0.3s ease !important;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+            overflow-y: auto !important;
+          }
+          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; }
         }
 
     </style>
@@ -10930,25 +10923,27 @@
 
 <div class="mobile-menu-overlay" id="mobileMenuOverlay" onclick="closeMobileMenu()"></div>
 <div class="mobile-menu-panel" id="mobileMenuPanel">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-weight:700;font-size:14px;">Menu</span>
-    <button onclick="closeMobileMenu()" style="background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;">&times;</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+    <span style="font-weight:700;font-size:15px;color:var(--text);">RDM Studio</span>
+    <button onclick="closeMobileMenu()" style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px;">&times;</button>
   </div>
   <div id="mobileMenuContent"></div>
 </div>
-<button class="sidebar-toggle-mobile" style="display:none;position:fixed;right:12px;bottom:12px;z-index:9996;width:48px;height:48px;border-radius:50%;background:var(--accent, #3b82f6);color:white;align-items:center;justify-content:center;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:18px;" onclick="document.querySelector('.sidebar').classList.toggle('mobile-open')">&#9881;</button>
+<button class="mobile-sidebar-fab" onclick="var s=document.querySelector('.sidebar');s.classList.toggle('mobile-open');var o=document.getElementById('mobileMenuOverlay');if(s.classList.contains('mobile-open')){o.classList.add('active');}else{o.classList.remove('active');}">&#9881;</button>
 <script>
 function openMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.add('active');
   document.getElementById('mobileMenuPanel').classList.add('active');
-  // Clone header items into mobile menu
   var content = document.getElementById('mobileMenuContent');
   if (content.children.length === 0) {
     var header = document.querySelector('header');
-    var items = header.querySelectorAll('select, button.btn, .btn-secondary, .btn-icon, .header-divider');
+    var items = header.querySelectorAll('.header-items-desktop select, .header-items-desktop button, .header-items-desktop .btn, .header-items-desktop .header-divider, .header-items-desktop .layout-menu-wrap');
     items.forEach(function(item) {
       var clone = item.cloneNode(true);
-      clone.style.display = '';
+      clone.style.cssText = 'display:block;width:100%;margin:3px 0;';
+      if (clone.tagName === 'DIV' && clone.classList.contains('header-divider')) {
+        clone.style.cssText = 'border-top:1px solid var(--border);margin:8px 0;height:0;';
+      }
       content.appendChild(clone);
     });
   }
@@ -10956,11 +10951,7 @@ function openMobileMenu() {
 function closeMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.remove('active');
   document.getElementById('mobileMenuPanel').classList.remove('active');
-}
-// Show sidebar toggle and burger on mobile
-if (window.innerWidth <= 1024) {
-  var fab = document.querySelector('.sidebar-toggle-mobile');
-  if (fab) fab.style.display = 'flex';
+  document.querySelector('.sidebar')?.classList.remove('mobile-open');
 }
 </script>
 
