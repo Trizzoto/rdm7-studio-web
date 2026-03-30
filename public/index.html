@@ -4,7 +4,7 @@
 <head>
     <title>RDM Studio Online — Try the RDM-7 Dashboard Designer</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1957,6 +1957,68 @@
         .dm-value { font-family: 'JetBrains Mono', monospace; }
         .dm-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
         .dm-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+        /* ── Mobile Responsive ────────────────────────────── */
+        @media (max-width: 768px) {
+          header { flex-wrap: wrap; height: auto !important; min-height: 44px; padding: 4px 8px !important; gap: 4px !important; }
+          header select, header button, header .btn { font-size: 10px !important; padding: 3px 6px !important; height: 28px !important; }
+          header .header-divider { display: none; }
+
+          .sidebar {
+            position: fixed !important; right: -280px; top: 0; bottom: 0; width: 280px !important;
+            z-index: 1000; transition: right 0.3s ease; background: var(--bg) !important;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+          }
+          .sidebar.mobile-open { right: 0 !important; }
+
+          .sidebar-toggle-mobile {
+            display: flex !important; position: fixed; right: 12px; bottom: 12px; z-index: 999;
+            width: 48px; height: 48px; border-radius: 50%; background: var(--accent, #3b82f6);
+            color: white; align-items: center; justify-content: center; border: none; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 20px;
+          }
+
+          .mobile-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998;
+          }
+          .mobile-overlay.active { display: block; }
+
+          .main-content, .editor-area, [style*="display:flex"][style*="flex:1"] {
+            flex-direction: column !important;
+          }
+
+          #canvasWrap, .canvas-wrap, [style*="overflow:auto"][style*="flex:1"] {
+            width: 100% !important; min-height: 300px; overflow: auto !important;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .widget-palette {
+            flex-direction: row !important; flex-wrap: wrap !important; overflow-x: auto !important;
+            max-height: 80px !important; padding: 4px !important;
+          }
+          .widget-palette .palette-item {
+            min-width: 60px !important; font-size: 9px !important; padding: 4px !important;
+          }
+
+          #signalModal, [style*="position:fixed"][style*="z-index:2000"] {
+            align-items: flex-end !important;
+          }
+          #signalModal .signal-modal-content, .signal-modal-content {
+            width: 100% !important; max-width: 100% !important; max-height: 85vh !important;
+            border-radius: 12px 12px 0 0 !important; margin: 0 !important;
+          }
+
+          .layout-menu { right: 0 !important; left: auto !important; min-width: 200px !important; }
+
+          #webPreviewBanner { font-size: 11px !important; padding: 8px 12px !important; }
+        }
+
+        @media (max-width: 480px) {
+          header { padding: 2px 4px !important; }
+          header select { max-width: 80px !important; }
+          #saveBtn, #saveAsBtn { font-size: 9px !important; padding: 2px 8px !important; }
+          .sidebar { width: 260px !important; }
+        }
+
     </style>
     <script>
         /* Early error handler to catch load failures */
@@ -1976,7 +2038,7 @@
 
 <body>
     <!-- Web preview banner -->
-    <div id="webPreviewBanner" style="background:#CC0000;color:#fff;text-align:center;padding:6px 32px 6px 12px;font-size:12px;font-family:'Sora',sans-serif;position:relative;z-index:10001;flex-shrink:0;">
+    <div id="webPreviewBanner" style="background:#CC0000;color:#fff;text-align:center;padding:6px 32px 6px 12px;font-size:12px;font-family:'Sora',sans-serif;position:relative;z-index:10001;flex-shrink:0;flex-wrap:wrap;">
         Try RDM Studio Online &mdash; This is a preview of the RDM-7 Visual Designer. <a href="https://rdm7.com.au" target="_blank" style="color:#fff;text-decoration:underline;font-weight:600;">Download the full desktop app</a> for device connectivity.
         <button onclick="document.getElementById('webPreviewBanner').style.display='none'" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:16px;cursor:pointer;padding:2px 6px;line-height:1;">&times;</button>
     </div>
@@ -10233,6 +10295,13 @@
         /* Check for desktop update on launch (delayed to not block UI) */
         setTimeout(_checkDesktopUpdate, 3000);
 
+        /* Mobile hint */
+        if (window.innerWidth < 768) {
+          setTimeout(() => {
+            if (typeof showToast === 'function') showToast('For the best experience, use a desktop browser. Pinch to zoom the canvas.', 'info');
+          }, 2000);
+        }
+
         /* Start */
         initScreenSizeSelector();
         initPalette();
@@ -10837,6 +10906,9 @@
         }
 
     </script>
+
+<button class="sidebar-toggle-mobile" style="display:none" onclick="document.querySelector('.sidebar').classList.toggle('mobile-open'); document.getElementById('mobileOverlay').classList.toggle('active');">&#9776;</button>
+<div id="mobileOverlay" class="mobile-overlay" onclick="document.querySelector('.sidebar').classList.remove('mobile-open'); this.classList.remove('active');"></div>
 
 </body>
 
