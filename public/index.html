@@ -9562,7 +9562,12 @@
                 history = [JSON.stringify(currentLayout)]; historyIndex = 0;
                 _editingActive = false; _lastDeviceSnapshot = firmwarePayload;
                 try { localStorage.removeItem('rdm7_draft'); } catch (e) { }
+                /* Clear WASM image cache so imported images get re-synced */
+                _wasmRegisteredImages.clear();
+                _wasmFailedImages.clear();
                 renderEditor(); renderSignals(); updateInspector(); refreshStorageInfo();
+                /* Force WASM to re-sync images from the imported bundle */
+                updateWasmPreview();
                 await fetchLayoutsKeepCurrent();
                 const parts = [];
                 if (images.length > 0) parts.push(`${uploadedImages}/${images.length} images`);
