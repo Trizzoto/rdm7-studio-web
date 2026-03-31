@@ -2026,6 +2026,16 @@
             touch-action: pan-x pan-y pinch-zoom !important;
           }
 
+          /* Viewport: align top-left instead of center so scaled canvas stays on-screen */
+          #workspaceViewport {
+            justify-content: flex-start !important;
+            align-items: flex-start !important;
+            overflow: auto !important;
+          }
+          .display-bezel {
+            transform-origin: top left !important;
+          }
+
           /* Hide the resize handle */
           .sidebar-resize { display: none !important; }
 
@@ -5754,7 +5764,8 @@
              * within the viewport so it stays visually centered at any zoom level. */
             const vp = document.getElementById('workspaceViewport');
             let cx = panX, cy = panY;
-            if (vp) {
+            const isMobile = window.innerWidth <= 900;
+            if (vp && !isMobile) {
                 const vpRect = vp.getBoundingClientRect();
                 const elW = canvasContainer.offsetWidth;
                 const elH = canvasContainer.offsetHeight;
