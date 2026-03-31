@@ -2409,6 +2409,8 @@
             <div class="header-divider"></div>
             <button class="btn" id="saveBtn" onclick="saveActiveLayout()" style="white-space:nowrap;">Save</button>
             <button class="btn btn-secondary" id="saveAsBtn" onclick="saveAsNewLayout()" style="white-space:nowrap;">Save As</button>
+            <div class="header-divider"></div>
+            <button class="btn btn-secondary" onclick="screenshotCanvas()" style="white-space:nowrap;" title="Save canvas as PNG">&#128247; Screenshot</button>
         </div>
         <!-- Hidden elements for JS compatibility -->
         <select id="ecuContextSelect" style="display:none;" onchange="onEcuContextChange(this.value)"><option value="">Custom</option></select>
@@ -9031,6 +9033,23 @@
                 const label = RDM.isConnected() ? 'Device' : 'localStorage';
                 el.innerHTML = `<span style="color:var(--text-muted)">${label}: ${usedKB} KB used</span>`;
             } catch(e) {}
+        }
+
+        function screenshotCanvas() {
+            const canvas = document.getElementById('canvas');
+            if (!canvas) { showToast('Canvas not found', 'error'); return; }
+            canvas.toBlob(function(blob) {
+                if (!blob) { showToast('Screenshot failed', 'error'); return; }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'rdm7-screenshot.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Screenshot saved!');
+            }, 'image/png');
         }
 
         function showToast(msg, type = 'success') {
