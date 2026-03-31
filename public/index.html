@@ -1996,17 +1996,19 @@
             justify-content: flex-start !important; align-items: flex-start !important;
             overflow: hidden !important; touch-action: none !important;
           }
-          /* Only block touch on canvas internals, not floating UI */
-          #workspaceViewport .display-bezel,
-          #workspaceViewport .canvas-container,
-          #workspaceViewport #interactionLayer { touch-action: none !important; }
-          /* Ensure mobile UI elements are clickable and above everything */
+          /* Touch: viewport handles pan/zoom via JS, but widget boxes must be tappable */
+          #workspaceViewport { touch-action: none !important; }
+          /* Widget boxes need manipulation for drag on mobile */
+          .widget-box { touch-action: manipulation !important; cursor: pointer !important; }
+          /* Sidebar widget palette items must be tappable */
+          .palette-item { touch-action: auto !important; cursor: pointer !important; }
+          /* Mobile UI buttons clickable */
           .mobile-burger, .mobile-sidebar-fab, #mobileZoomBar,
-          .mobile-menu-overlay, .mobile-menu-panel {
+          .mobile-menu-overlay, .mobile-menu-panel, .sidebar, .sidebar * {
             touch-action: auto !important;
             -webkit-tap-highlight-color: rgba(0,0,0,0.1);
           }
-          .mobile-sidebar-fab { bottom: 70px !important; } /* above zoom bar */
+          .mobile-sidebar-fab { bottom: 70px !important; }
           #mobileZoomBar { bottom: 12px !important; }
           .workspace {
             display: block !important; overflow: visible !important;
@@ -2036,14 +2038,18 @@
         @media (min-width: 601px) and (max-width: 900px) {
           .mobile-burger { display: none !important; }
           header {
-            height: auto !important; min-height: 36px; padding: 2px 6px !important;
+            height: auto !important; min-height: 36px; padding: 2px 4px !important;
             position: sticky !important; top: 0; z-index: 100;
-            flex-wrap: wrap !important; gap: 2px !important;
+            flex-wrap: wrap !important; gap: 1px !important;
+            width: 100% !important; min-width: 100% !important;
+            box-sizing: border-box !important;
           }
           header select, header button, header .btn {
-            font-size: 9px !important; padding: 2px 5px !important; height: 24px !important;
+            font-size: 8px !important; padding: 1px 4px !important; height: 22px !important;
           }
-          header .header-divider { margin: 0 1px !important; height: 18px !important; }
+          header .header-divider { margin: 0 !important; height: 16px !important; }
+          header .title { gap: 2px !important; }
+          header .title img { height: 16px !important; }
           #webPreviewBanner { font-size: 10px !important; padding: 4px 8px !important; }
         }
 
@@ -5281,6 +5287,12 @@
                     if (e.button !== 0) return;
                     startDrag(e, index);
                 };
+                box.ontouchstart = (e) => {
+                    if (e.touches.length !== 1) return;
+                    e.stopPropagation(); /* prevent viewport pan */
+                    const touch = e.touches[0];
+                    startDrag({ clientX: touch.clientX, clientY: touch.clientY, button: 0, target: box, shiftKey: false, preventDefault: () => {}, stopPropagation: () => {} }, index);
+                };
 
                 box.oncontextmenu = (e) => {
                     e.preventDefault();
@@ -6123,6 +6135,21 @@
                 if (document.getElementById('livePreviewToggle').checked) triggerPreview();
             }
         };
+
+        /* ── Touch → mouse forwarding for widget drag/resize ──── */
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging && !isResizing) return;
+            if (e.touches.length !== 1) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            window.onmousemove({ clientX: t.clientX, clientY: t.clientY, button: 0, target: e.target, shiftKey: false, ctrlKey: false, metaKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+        }, { passive: false });
+
+        window.addEventListener('touchend', (e) => {
+            if (!isDragging && !isResizing) return;
+            const t = e.changedTouches[0];
+            window.onmouseup({ clientX: t.clientX, clientY: t.clientY, button: 0, target: e.target, shiftKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+        });
 
         window.onkeydown = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
