@@ -2038,19 +2038,21 @@
         @media (min-width: 601px) and (max-width: 900px) {
           .mobile-burger { display: none !important; }
           header {
-            height: auto !important; min-height: 36px; padding: 2px 4px !important;
+            height: auto !important; min-height: 34px; padding: 2px 4px !important;
             position: sticky !important; top: 0; z-index: 100;
-            flex-wrap: wrap !important; gap: 1px !important;
-            width: 100% !important; min-width: 100% !important;
-            box-sizing: border-box !important;
+            flex-wrap: nowrap !important; gap: 2px !important;
+            width: 100% !important; box-sizing: border-box !important;
+            overflow-x: auto !important; overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch;
           }
           header select, header button, header .btn {
-            font-size: 8px !important; padding: 1px 4px !important; height: 22px !important;
+            font-size: 9px !important; padding: 2px 5px !important; height: 24px !important;
+            flex-shrink: 0 !important; white-space: nowrap !important;
           }
-          header .header-divider { margin: 0 !important; height: 16px !important; }
-          header .title { gap: 2px !important; }
-          header .title img { height: 16px !important; }
-          #webPreviewBanner { font-size: 10px !important; padding: 4px 8px !important; }
+          header .header-divider { margin: 0 1px !important; height: 18px !important; flex-shrink: 0 !important; }
+          header .title { gap: 2px !important; flex-shrink: 0 !important; }
+          header .title img { height: 18px !important; }
+          #webPreviewBanner { display: none !important; }
         }
 
         /* ── Very short viewport (landscape phone): hide banner ── */
@@ -5227,6 +5229,9 @@
                 const sizeHint = `${def.defW}x${def.defH}`;
                 item.innerHTML = `<span class="palette-icon" style="color:var(--text-muted)">${icon}</span><span>${def.displayName || type}</span><span class="palette-size-hint">${sizeHint}</span>`;
                 item.onclick = () => addWidget(type);
+                item.ontouchend = (e) => { e.preventDefault(); addWidget(type); };
+                item.setAttribute('role', 'button');
+                item.setAttribute('tabindex', '0');
                 paletteList.appendChild(item);
             });
         }
@@ -11078,18 +11083,45 @@ function openMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.add('active');
   document.getElementById('mobileMenuPanel').classList.add('active');
   var content = document.getElementById('mobileMenuContent');
-  if (content.children.length === 0) {
-    var header = document.querySelector('header');
-    var items = header.querySelectorAll('.header-items-desktop select, .header-items-desktop button, .header-items-desktop .btn, .header-items-desktop .header-divider, .header-items-desktop .layout-menu-wrap');
-    items.forEach(function(item) {
-      var clone = item.cloneNode(true);
-      clone.style.cssText = 'display:block;width:100%;margin:3px 0;';
-      if (clone.tagName === 'DIV' && clone.classList.contains('header-divider')) {
-        clone.style.cssText = 'border-top:1px solid var(--border);margin:8px 0;height:0;';
+  if (content.children.length > 0) return;
+  /* Build menu manually with proper labels */
+  var menuItems = [
+    { type: 'select', id: 'screenSizeSelect' },
+    { type: 'select', id: 'screenModeSelect' },
+    { type: 'select', id: 'layoutSelect' },
+    { type: 'divider' },
+    { type: 'button', label: 'Save', onclick: 'saveActiveLayout()' },
+    { type: 'button', label: 'Save As', onclick: 'saveAsNewLayout()' },
+    { type: 'divider' },
+    { type: 'select', id: 'connectionMode' },
+    { type: 'divider' },
+    { type: 'button', label: 'Sim', onclick: 'toggleSimulation()' },
+    { type: 'button', label: 'Reset View', onclick: 'resetView()' },
+    { type: 'button', label: 'Help', onclick: "document.getElementById('helpModal').style.display='flex'" },
+  ];
+  menuItems.forEach(function(mi) {
+    if (mi.type === 'divider') {
+      var d = document.createElement('div');
+      d.style.cssText = 'border-top:1px solid var(--border);margin:8px 0;';
+      content.appendChild(d);
+    } else if (mi.type === 'select' && mi.id) {
+      var orig = document.getElementById(mi.id);
+      if (orig) {
+        var clone = orig.cloneNode(true);
+        clone.id = ''; /* avoid duplicate IDs */
+        clone.style.cssText = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px;height:38px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;';
+        /* Sync changes back to original */
+        clone.onchange = function() { orig.value = this.value; orig.dispatchEvent(new Event('change')); };
+        content.appendChild(clone);
       }
-      content.appendChild(clone);
-    });
-  }
+    } else if (mi.type === 'button') {
+      var btn = document.createElement('button');
+      btn.textContent = mi.label;
+      btn.style.cssText = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;text-align:left;';
+      btn.onclick = function() { closeMobileMenu(); eval(mi.onclick); };
+      content.appendChild(btn);
+    }
+  });
 }
 function closeMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.remove('active');
