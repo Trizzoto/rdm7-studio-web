@@ -2044,8 +2044,23 @@
           }
         }
 
-        /* ── Landscape phone + small tablet (601-900px): compact inline header ── */
-        @media (min-width: 601px) and (max-width: 900px) {
+        /* ── Landscape phone (601-900px AND short viewport): burger menu ── */
+        @media (min-width: 601px) and (max-width: 900px) and (max-height: 500px) {
+          .mobile-burger {
+            display: flex !important; align-items: center; justify-content: center;
+            width: 34px; height: 34px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; color: var(--text); font-size: 18px; flex-shrink: 0;
+          }
+          .header-items-desktop { display: none !important; }
+          header {
+            height: auto !important; min-height: 34px; padding: 4px 8px !important;
+            position: sticky !important; top: 0; z-index: 100;
+          }
+          #webPreviewBanner { display: none !important; }
+        }
+
+        /* ── Landscape tablet (601-900px AND tall viewport): compact inline header ── */
+        @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) {
           .mobile-burger { display: none !important; }
           header {
             height: auto !important; min-height: 34px; padding: 2px 4px !important;
@@ -5298,6 +5313,23 @@
                             if (e.touches.length !== 1) return;
                             e.stopPropagation();
                             const touch = e.touches[0];
+                            const _mH = (ev) => {
+                                if (!isResizing) return;
+                                if (ev.touches.length !== 1) return;
+                                ev.preventDefault();
+                                const t = ev.touches[0];
+                                window.onmousemove({ clientX: t.clientX, clientY: t.clientY, button: 0, target: ev.target, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+                            };
+                            const _eH = (ev) => {
+                                const t = ev.changedTouches[0];
+                                if (isResizing) {
+                                    window.onmouseup({ clientX: t.clientX, clientY: t.clientY, button: 0, target: ev.target, shiftKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+                                }
+                                hDiv.removeEventListener('touchmove', _mH);
+                                hDiv.removeEventListener('touchend', _eH);
+                            };
+                            hDiv.addEventListener('touchmove', _mH, { passive: false });
+                            hDiv.addEventListener('touchend', _eH);
                             startResize({ clientX: touch.clientX, clientY: touch.clientY, button: 0, stopPropagation: () => {}, preventDefault: () => {} }, index, h);
                         };
                         box.appendChild(hDiv);
@@ -5312,6 +5344,27 @@
                     if (e.touches.length !== 1) return;
                     e.stopPropagation(); /* prevent viewport pan */
                     const touch = e.touches[0];
+                    /* Attach move/end listeners to THIS element BEFORE startDrag()
+                       rebuilds the DOM via renderEditor(). Touch events still dispatch
+                       to the original target even after it's disconnected from the DOM,
+                       but they no longer bubble to window — so we must listen here. */
+                    const _moveH = (ev) => {
+                        if (!isDragging && !isResizing) return;
+                        if (ev.touches.length !== 1) return;
+                        ev.preventDefault();
+                        const t = ev.touches[0];
+                        window.onmousemove({ clientX: t.clientX, clientY: t.clientY, button: 0, target: ev.target, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+                    };
+                    const _endH = (ev) => {
+                        const t = ev.changedTouches[0];
+                        if (isDragging || isResizing) {
+                            window.onmouseup({ clientX: t.clientX, clientY: t.clientY, button: 0, target: ev.target, shiftKey: false, preventDefault: () => {}, stopPropagation: () => {} });
+                        }
+                        box.removeEventListener('touchmove', _moveH);
+                        box.removeEventListener('touchend', _endH);
+                    };
+                    box.addEventListener('touchmove', _moveH, { passive: false });
+                    box.addEventListener('touchend', _endH);
                     startDrag({ clientX: touch.clientX, clientY: touch.clientY, button: 0, target: box, shiftKey: false, preventDefault: () => {}, stopPropagation: () => {} }, index);
                 };
 
