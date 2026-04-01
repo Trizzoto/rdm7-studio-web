@@ -2011,7 +2011,7 @@
             touch-action: auto !important;
             -webkit-tap-highlight-color: rgba(0,0,0,0.1);
           }
-          .mobile-sidebar-fab { bottom: 70px !important; }
+          .mobile-sidebar-fab { bottom: 70px !important; right: 16px !important; }
           #mobileZoomBar { bottom: 12px !important; }
           .workspace {
             display: flex !important; flex-direction: column !important;
@@ -2038,6 +2038,7 @@
             border-radius: 6px; cursor: pointer; color: var(--text); font-size: 20px; flex-shrink: 0;
           }
           .header-items-desktop { display: none !important; }
+          #webPreviewBanner { display: none !important; }
           header {
             height: auto !important; min-height: 44px; padding: 6px 10px !important;
             position: sticky !important; top: 0; z-index: 100;
@@ -2093,7 +2094,7 @@
             height: auto !important; min-height: 34px; padding: 4px 8px !important;
             position: sticky !important; top: 0; z-index: 100;
           }
-          .mobile-sidebar-fab { display: flex !important; bottom: 6px !important; width: 40px !important; height: 40px !important; }
+          .mobile-sidebar-fab { display: flex !important; bottom: 6px !important; right: 16px !important; width: 40px !important; height: 40px !important; }
           #mobileZoomBar { display: flex !important; bottom: 6px !important; }
           .sidebar-resize { display: none !important; }
           .sidebar, .sidebar-right {
@@ -5931,7 +5932,9 @@
             const isRoundBezel = bezelPad > 0;
             const contentW = CANVAS_W + (bezelOn ? (isRoundBezel ? bezelPad : 160) : 0);
             const contentH = CANVAS_H + (bezelOn ? (isRoundBezel ? bezelPad : 100) : 0);
-            const padW = 40, padH = 40; /* breathing room */
+            /* Extra bottom padding on mobile for zoom bar + FAB overlay */
+            const isMobile = window.innerWidth <= 900 || window.innerHeight <= 500;
+            const padW = 40, padH = isMobile ? 80 : 40;
             const scaleX = (rect.width - padW) / contentW;
             const scaleY = (rect.height - padH) / contentH;
             zoomLevel = Math.min(scaleX, scaleY, 1.0);
