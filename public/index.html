@@ -2080,11 +2080,46 @@
           #webPreviewBanner { display: none !important; }
         }
 
-        /* ── Very short viewport (landscape phone): hide banner ── */
-        @media (max-height: 450px) {
+        /* ── Short viewport (landscape phone, any width): burger + mobile layout ── */
+        @media (max-height: 500px) {
           #webPreviewBanner { display: none !important; }
-          #mobileZoomBar { bottom: 6px !important; }
-          .mobile-sidebar-fab { bottom: 6px !important; width: 40px !important; height: 40px !important; }
+          .mobile-burger {
+            display: flex !important; align-items: center; justify-content: center;
+            width: 34px; height: 34px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; color: var(--text); font-size: 18px; flex-shrink: 0;
+          }
+          .header-items-desktop { display: none !important; }
+          header {
+            height: auto !important; min-height: 34px; padding: 4px 8px !important;
+            position: sticky !important; top: 0; z-index: 100;
+          }
+          .mobile-sidebar-fab { display: flex !important; bottom: 6px !important; width: 40px !important; height: 40px !important; }
+          #mobileZoomBar { display: flex !important; bottom: 6px !important; }
+          .sidebar-resize { display: none !important; }
+          .sidebar, .sidebar-right {
+            position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
+            width: 300px !important; min-width: 300px !important; max-width: 300px !important;
+            z-index: 9997; transition: right 0.3s ease !important;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.4); overflow-y: auto !important;
+          }
+          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; z-index: 9999 !important; }
+          .workspace {
+            display: flex !important; flex-direction: column !important;
+            overflow: hidden !important; grid-template-columns: none !important;
+          }
+          .main-stage, main.main-stage {
+            display: flex !important; flex-direction: column !important;
+            width: auto !important; max-width: none !important;
+            overflow: hidden !important; flex: 1 !important; min-height: 0 !important;
+          }
+          #workspaceViewport {
+            justify-content: flex-start !important; align-items: flex-start !important;
+            overflow: hidden !important; touch-action: none !important;
+            flex: 1 !important; min-height: 0 !important;
+          }
+          .widget-box { touch-action: none !important; }
+          .align-bar { display: none !important; }
+          #sigList { display: none !important; }
         }
 
     </style>
