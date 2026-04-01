@@ -1994,7 +1994,7 @@
             z-index: 9997; transition: right 0.3s ease !important;
             box-shadow: -4px 0 24px rgba(0,0,0,0.4); overflow-y: auto !important;
           }
-          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; }
+          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; z-index: 9999 !important; }
           #workspaceViewport {
             justify-content: flex-start !important; align-items: flex-start !important;
             overflow: hidden !important; touch-action: none !important;
@@ -2002,7 +2002,7 @@
           /* Touch: viewport handles pan/zoom via JS, but widget boxes must be tappable */
           #workspaceViewport { touch-action: none !important; }
           /* Widget boxes need manipulation for drag on mobile */
-          .widget-box { touch-action: manipulation !important; cursor: pointer !important; }
+          .widget-box { touch-action: none !important; cursor: pointer !important; }
           /* Sidebar widget palette items must be tappable */
           .palette-item { touch-action: auto !important; cursor: pointer !important; }
           /* Mobile UI buttons clickable */
@@ -2014,13 +2014,20 @@
           .mobile-sidebar-fab { bottom: 70px !important; }
           #mobileZoomBar { bottom: 12px !important; }
           .workspace {
-            display: block !important; overflow: visible !important;
-            width: auto !important; height: auto !important;
+            display: flex !important; flex-direction: column !important;
+            overflow: hidden !important;
+            grid-template-columns: none !important;
           }
           .main-stage, main.main-stage {
-            display: block !important; width: auto !important; max-width: none !important;
-            overflow: visible !important; flex: none !important;
+            display: flex !important; flex-direction: column !important;
+            width: auto !important; max-width: none !important;
+            overflow: hidden !important; flex: 1 !important;
+            min-height: 0 !important;
           }
+          #workspaceViewport {
+            flex: 1 !important; min-height: 0 !important;
+          }
+          .align-bar { display: none !important; }
         }
 
         /* ── Portrait phone (≤600px): burger menu ── */
@@ -5287,6 +5294,12 @@
                         const hDiv = document.createElement('div');
                         hDiv.className = `resize-handle ${h}`;
                         hDiv.onmousedown = (e) => startResize(e, index, h);
+                        hDiv.ontouchstart = (e) => {
+                            if (e.touches.length !== 1) return;
+                            e.stopPropagation();
+                            const touch = e.touches[0];
+                            startResize({ clientX: touch.clientX, clientY: touch.clientY, button: 0, stopPropagation: () => {}, preventDefault: () => {} }, index, h);
+                        };
                         box.appendChild(hDiv);
                     });
                 }
