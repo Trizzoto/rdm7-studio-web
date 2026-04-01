@@ -75,10 +75,10 @@
         header {
             background: #000;
             border-bottom: 1px solid var(--border);
-            padding: 8px 16px;
+            padding: 4px 10px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 6px;
             z-index: 100;
             flex-shrink: 0;
             width: 100%;
@@ -871,8 +871,8 @@
         }
 
         .header-pill {
-            padding: 5px 8px;
-            font-size: 11px;
+            padding: 4px 8px;
+            font-size: 10px;
             font-weight: 500;
             letter-spacing: 0.02em;
             border-radius: var(--radius-sm);
@@ -11197,8 +11197,8 @@ function openMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.add('active');
   document.getElementById('mobileMenuPanel').classList.add('active');
   var content = document.getElementById('mobileMenuContent');
-  if (content.children.length > 0) return;
-  /* Build menu manually with proper labels */
+  content.innerHTML = ''; /* rebuild each time to pick up dynamic state */
+  /* Build menu with ALL desktop options */
   var menuItems = [
     { type: 'select', id: 'screenSizeSelect' },
     { type: 'select', id: 'screenModeSelect' },
@@ -11207,11 +11207,27 @@ function openMobileMenu() {
     { type: 'button', label: 'Save', onclick: 'saveActiveLayout()' },
     { type: 'button', label: 'Save As', onclick: 'saveAsNewLayout()' },
     { type: 'divider' },
+    { type: 'button', label: 'New Layout...', onclick: 'layoutEditorNew()' },
+    { type: 'button', label: 'Rename...', onclick: 'renameCurrentLayout()' },
+    { type: 'button', label: 'Import Layout', onclick: 'importRdm()' },
+    { type: 'button', label: 'Export Layout', onclick: 'exportRdm()' },
+    { type: 'button', label: 'Screenshot', onclick: 'screenshotCanvas()' },
+    { type: 'divider' },
+    { type: 'button', label: 'Device Manager...', onclick: 'openDeviceManager()' },
+    { type: 'button', label: 'Device Settings...', onclick: 'openDeviceSettings()' },
+    { type: 'button', label: 'Signal Dashboard...', onclick: 'openSignalDashboard()' },
+    { type: 'button', label: 'Data Logger...', onclick: 'openDataLogger()' },
+    { type: 'button', label: 'Fuel Calibration...', onclick: 'openFuelCalibration()' },
+    { type: 'divider' },
+    { type: 'button', label: 'Marketplace...', onclick: 'openMarketplace()' },
+    { type: 'divider' },
     { type: 'select', id: 'connectionMode' },
     { type: 'divider' },
     { type: 'button', label: 'Sim', onclick: 'toggleSimulation()' },
     { type: 'button', label: 'Reset View', onclick: 'resetView()' },
     { type: 'button', label: 'Help', onclick: "document.getElementById('helpModal').style.display='flex'" },
+    { type: 'divider' },
+    { type: 'button', label: 'Delete Layout', onclick: 'deleteCurrentLayout()', style: 'color:hsl(0,70%,60%)' },
   ];
   menuItems.forEach(function(mi) {
     if (mi.type === 'divider') {
@@ -11231,7 +11247,9 @@ function openMobileMenu() {
     } else if (mi.type === 'button') {
       var btn = document.createElement('button');
       btn.textContent = mi.label;
-      btn.style.cssText = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;text-align:left;';
+      var btnStyle = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;text-align:left;';
+      if (mi.style) btnStyle += mi.style;
+      btn.style.cssText = btnStyle;
       btn.onclick = function() { closeMobileMenu(); eval(mi.onclick); };
       content.appendChild(btn);
     }
