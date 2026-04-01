@@ -11058,8 +11058,12 @@
 
         function openMarketplace() {
             const url = 'https://marketplace.realtimedatamonitoring.com.au';
-            try { window.__TAURI_INTERNALS__?.invoke('plugin:shell|open', { path: url }); }
-            catch (e) { window.open(url, '_blank'); }
+            if (window.__TAURI_INTERNALS__) {
+                try { window.__TAURI_INTERNALS__.invoke('plugin:shell|open', { path: url }); }
+                catch (e) { window.open(url, '_blank'); }
+            } else {
+                window.open(url, '_blank');
+            }
         }
 
         async function openFuelCalibration() {
