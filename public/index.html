@@ -6367,6 +6367,13 @@
                 if (w.type === 'image' && w.config.image_scale !== undefined) {
                     w.config.image_scale = Math.round(w.config.image_scale * 256 / 100);
                 }
+                /* Meter: if tick labels disabled, push major tick count out of range so
+                 * LVGL never draws a label (labels only appear on major ticks) and also
+                 * force label color to fully transparent as a belt-and-suspenders. */
+                if (w.type === 'meter' && w.config.show_tick_labels === false) {
+                    const minorCount = w.config.minor_tick_count || 21;
+                    w.config.major_tick_every = Math.max(minorCount + 1, 999);
+                }
                 /* Clean up web-editor-only fields */
                 delete w.config.bar_alerts_enabled;
                 /* Convert rule overrides from object {field: value} to firmware array [{field, type, value}] */
