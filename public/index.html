@@ -2775,7 +2775,7 @@
     </div>
 
     <footer>
-        <div><span id="connectionStatus" class="status-dot"></span> <span id="statusText">Connecting...</span></div>
+        <div><span id="connectionStatus" class="status-dot online"></span> <span id="statusText">Ready</span></div>
         <div id="widgetCount">0 widgets, 0 signals</div>
         <div id="storageInfo" style="font-size:10px; color:var(--text-muted); cursor:pointer;" onclick="openStorageManager()" title="Click to manage storage"></div>
         <div><span id="screenResLabel">800x480</span> &middot; <span id="widgetCoords">(0, 0)</span></div>
@@ -10581,8 +10581,9 @@
         /* _pollSimState removed — simulation state is local only */
         /* Initialize WASM first, then load layouts so the preview renders immediately */
         initWasm().then(() => {
-            fetchDeviceInfo().then(() => fetchLayouts());
-            /* Boot splash removed — no dismissal needed */
+            /* Web is always local/offline — skip device info probe, just load layouts */
+            fetchLayouts();
+            updateStatus('Ready');
         });
         /* Auto zoom-to-fit on load + window resize */
         requestAnimationFrame(() => zoomToFit());
