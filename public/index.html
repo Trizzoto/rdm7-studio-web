@@ -2466,15 +2466,11 @@
             </div>
             <input type="file" id="importRdmInput" accept=".rdm" style="display:none">
             <div style="flex:1;"></div>
-            <!-- Connection Controls -->
-            <div id="connectionBar" style="display:flex; align-items:center; gap:6px;">
+            <!-- Connection Controls (hidden on web — always offline) -->
+            <div id="connectionBar" style="display:none; align-items:center; gap:6px;">
                 <select id="connectionMode" onchange="_onConnectionModeChange(this.value)"
                     style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:4px 6px; border-radius:var(--radius-sm); font-size:10px; font-family:'JetBrains Mono',monospace;">
                     <option value="local">Offline (Local)</option>
-                    <option value="wifi">WiFi</option>
-                    <option value="hotspot">ESP32 Hotspot</option>
-                    <!-- USB Serial hidden in web version (no serial API) -->
-                    <!-- <option value="usb">USB Serial</option> -->
                 </select>
                 <span id="connModeLabel" style="font-size:10px; color:var(--text-muted);">Local</span>
                 <button id="scanDevicesBtn" class="btn btn-secondary" onclick="_scanForDevices()"
@@ -4783,9 +4779,10 @@
                     { name: "major_tick_width", label: "Major Tick Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance" },
                     { name: "major_tick_length", label: "Major Tick Length", type: "stepper", min: 1, max: 50, def: 15, cat: "appearance" },
                     { name: "major_tick_color", label: "Major Tick Color", type: "color", def: 0xFFFFFF, cat: "appearance" },
-                    { name: "label_gap", label: "Label Gap", type: "stepper", min: -20, max: 50, def: 10, cat: "appearance" },
-                    { name: "tick_label_font", label: "Tick Label Font", type: "font", def: "", cat: "appearance" },
-                    { name: "tick_label_color", label: "Tick Label Color", type: "color", def: 0xFFFFFF, cat: "appearance" },
+                    { name: "show_tick_labels", label: "Show Tick Labels", type: "checkbox", def: true, cat: "appearance" },
+                    { name: "label_gap", label: "Label Gap", type: "stepper", min: -20, max: 50, def: 10, cat: "appearance", enabledBy: "show_tick_labels" },
+                    { name: "tick_label_font", label: "Tick Label Font", type: "font", def: "", cat: "appearance", enabledBy: "show_tick_labels" },
+                    { name: "tick_label_color", label: "Tick Label Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "needle_image_name", label: "Needle Image", type: "image_picker", def: "", cat: "appearance" },
                     { name: "needle_pivot_x", label: "Needle Pivot X", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance" },
                     { name: "needle_pivot_y", label: "Needle Pivot Y", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance" },
@@ -11226,8 +11223,6 @@ function openMobileMenu() {
     { type: 'button', label: 'Fuel Calibration...', onclick: 'openFuelCalibration()' },
     { type: 'divider' },
     { type: 'button', label: 'Marketplace...', onclick: 'openMarketplace()' },
-    { type: 'divider' },
-    { type: 'select', id: 'connectionMode' },
     { type: 'divider' },
     { type: 'button', label: 'Sim', onclick: 'toggleSimulation()' },
     { type: 'button', label: 'Reset View', onclick: 'resetView()' },
