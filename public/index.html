@@ -4743,14 +4743,15 @@
                     { name: "border_width", label: "Border Width", type: "stepper", min: 0, max: 20, def: 0, cat: "appearance" },
                     { name: "border_opa", label: "Border Opacity", type: "stepper", min: 0, max: 255, def: 255, cat: "appearance" },
                     { name: "scale_padding", label: "Scale Padding", type: "stepper", min: 0, max: 100, def: 0, cat: "appearance" },
-                    { name: "minor_tick_count", label: "Tick Count", type: "stepper", min: 2, max: 100, def: 21, cat: "appearance" },
-                    { name: "minor_tick_width", label: "Tick Width", type: "stepper", min: 1, max: 20, def: 2, cat: "appearance" },
-                    { name: "minor_tick_length", label: "Tick Length", type: "stepper", min: 1, max: 50, def: 10, cat: "appearance" },
-                    { name: "minor_tick_color", label: "Tick Color", type: "color", def: 0x9E9E9E, cat: "appearance" },
-                    { name: "major_tick_every", label: "Major Tick Every", type: "stepper", min: 1, max: 50, def: 5, cat: "appearance" },
-                    { name: "major_tick_width", label: "Major Tick Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance" },
-                    { name: "major_tick_length", label: "Major Tick Length", type: "stepper", min: 1, max: 50, def: 15, cat: "appearance" },
-                    { name: "major_tick_color", label: "Major Tick Color", type: "color", def: 0xFFFFFF, cat: "appearance" },
+                    { name: "show_ticks", label: "Show Ticks", type: "checkbox", def: true, cat: "appearance" },
+                    { name: "minor_tick_count", label: "Tick Count", type: "stepper", min: 2, max: 100, def: 21, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "minor_tick_width", label: "Tick Width", type: "stepper", min: 1, max: 20, def: 2, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "minor_tick_length", label: "Tick Length", type: "stepper", min: 1, max: 50, def: 10, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "minor_tick_color", label: "Tick Color", type: "color", def: 0x9E9E9E, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "major_tick_every", label: "Major Tick Every", type: "stepper", min: 1, max: 50, def: 5, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "major_tick_width", label: "Major Tick Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "major_tick_length", label: "Major Tick Length", type: "stepper", min: 1, max: 50, def: 15, cat: "appearance", enabledBy: "show_ticks" },
+                    { name: "major_tick_color", label: "Major Tick Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "show_tick_labels", label: "Show Tick Labels", type: "checkbox", def: true, cat: "appearance" },
                     { name: "label_gap", label: "Label Gap", type: "stepper", min: -20, max: 50, def: 10, cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "tick_label_font", label: "Tick Label Font", type: "font", def: "", cat: "appearance", enabledBy: "show_tick_labels" },
@@ -6367,10 +6368,18 @@
                 if (w.type === 'image' && w.config.image_scale !== undefined) {
                     w.config.image_scale = Math.round(w.config.image_scale * 256 / 100);
                 }
+                /* Meter: if ticks disabled, zero out tick lengths + widths so LVGL
+                 * draws nothing, and also skip labels (no major ticks = no labels). */
+                if (w.type === 'meter' && w.config.show_ticks === false) {
+                    w.config.minor_tick_length = 0;
+                    w.config.minor_tick_width = 0;
+                    w.config.major_tick_length = 0;
+                    w.config.major_tick_width = 0;
+                    w.config.major_tick_every = 999;
+                }
                 /* Meter: if tick labels disabled, push major tick count out of range so
-                 * LVGL never draws a label (labels only appear on major ticks) and also
-                 * force label color to fully transparent as a belt-and-suspenders. */
-                if (w.type === 'meter' && w.config.show_tick_labels === false) {
+                 * LVGL never draws a label (labels only appear on major ticks). */
+                else if (w.type === 'meter' && w.config.show_tick_labels === false) {
                     const minorCount = w.config.minor_tick_count || 21;
                     w.config.major_tick_every = Math.max(minorCount + 1, 999);
                 }
