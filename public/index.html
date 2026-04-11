@@ -3021,36 +3021,8 @@
             if (scanBtn) scanBtn.style.display = '';
         }
 
-        /* Auto-restore last connection on startup */
-        (function _restoreConnection() {
-            const settings = RDM.getConnectionSettings();
-            if (settings.mode === 'wifi' && settings.ip) {
-                RDM.setMode('wifi', { ip: settings.ip, port: settings.port });
-                document.getElementById('connectionMode').value = 'wifi';
-                document.getElementById('connModeLabel').textContent = settings.ip;
-                /* Auto-test connection silently */
-                _testConnection();
-            } else if (settings.mode === 'hotspot') {
-                RDM.setMode('hotspot');
-                document.getElementById('connectionMode').value = 'hotspot';
-                document.getElementById('connModeLabel').textContent = '192.168.4.1';
-                _testConnection();
-            } else if (settings.mode === 'usb' && settings.portName) {
-                (async () => {
-                    try {
-                        await RDM.serialConnect(settings.portName);
-                        document.getElementById('connectionMode').value = 'usb';
-                        document.getElementById('connModeLabel').textContent = settings.portName;
-                        _testConnection();
-                    } catch (e) {
-                        console.warn('USB auto-reconnect failed:', e);
-                        _updateConnectionUI();
-                    }
-                })();
-            } else {
-                _updateConnectionUI();
-            }
-        })();
+        /* Web is always offline — no auto-restore of device connections */
+        _updateConnectionUI();
 
         // ── IndexedDB Image Storage (localStorage is too small for images) ──
         const imageStore = (() => {
@@ -10580,8 +10552,11 @@
         refreshStorageInfo();
         /* _pollSimState removed — simulation state is local only */
         /* Initialize WASM first, then load layouts so the preview renders immediately */
+        /* Web is always local/offline — force local mode and clear any stale connection state */
+        try { localStorage.removeItem('rdm7_connection_settings'); } catch (e) { }
+        RDM.setMode('local');
+
         initWasm().then(() => {
-            /* Web is always local/offline — skip device info probe, just load layouts */
             fetchLayouts();
             updateStatus('Ready');
         });
