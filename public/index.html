@@ -542,6 +542,30 @@
             cursor: nwse-resize;
         }
 
+        /* Mobile/touch: expand hit area to ~22px while keeping the visible dot small.
+           The widget-box gets padded-out handles via radial-gradient background so the
+           tap target is generous but the glyph stays tidy. */
+        @media (pointer: coarse), (max-width: 900px), (max-height: 500px) {
+            .widget-box.selected .resize-handle {
+                width: 22px;
+                height: 22px;
+                background:
+                    radial-gradient(circle at center,
+                        hsl(0,0%,100%) 0 4.5px,
+                        var(--accent) 4.5px 5.5px,
+                        transparent 6px 100%);
+                border: 0;
+                border-radius: 50%;
+            }
+            .widget-box.selected .resize-handle.nw { top: -12px; left: -12px; }
+            .widget-box.selected .resize-handle.n  { top: -12px; left: calc(50% - 11px); }
+            .widget-box.selected .resize-handle.ne { top: -12px; right: -12px; }
+            .widget-box.selected .resize-handle.w  { top: calc(50% - 11px); left: -12px; }
+            .widget-box.selected .resize-handle.e  { top: calc(50% - 11px); right: -12px; }
+            .widget-box.selected .resize-handle.sw { bottom: -12px; left: -12px; }
+            .widget-box.selected .resize-handle.s  { bottom: -12px; left: calc(50% - 11px); }
+            .widget-box.selected .resize-handle.se { bottom: -12px; right: -12px; }
+        }
 
         .align-bar {
             display: flex;
@@ -2047,6 +2071,88 @@
         /* ── Bottom action bar (hidden on desktop) ── */
         #mobileActionBar { display: none; }
         #mobileActionBar button { -webkit-tap-highlight-color: transparent; }
+
+        /* ── Widget selection toolbar (mobile/touch only, shown when a widget is selected) ── */
+        #widgetSelToolbar { display: none; }
+        @media (max-width: 900px), (max-height: 500px) {
+            #widgetSelToolbar {
+                display: none;
+                position: fixed;
+                left: 8px; right: 8px;
+                bottom: calc(56px + env(safe-area-inset-bottom) + 4px);
+                z-index: 9997;
+                background: rgba(24,24,24,0.94);
+                backdrop-filter: blur(14px);
+                -webkit-backdrop-filter: blur(14px);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+                padding: 6px;
+                flex-direction: column;
+                gap: 4px;
+                animation: wst-in 0.18s ease-out;
+            }
+            #widgetSelToolbar.visible { display: flex; }
+            @keyframes wst-in {
+                from { transform: translateY(8px); opacity: 0; }
+                to   { transform: translateY(0);   opacity: 1; }
+            }
+            .wst-row { display: flex; align-items: center; gap: 3px; }
+            .wst-row-2 { justify-content: space-around; padding: 0 2px 2px; }
+            .wst-btn, .wst-step, .wst-size-btn {
+                display: inline-flex; align-items: center; justify-content: center;
+                min-width: 40px; height: 40px;
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.08);
+                color: var(--text, #e0e0e0);
+                border-radius: 8px;
+                cursor: pointer;
+                padding: 0;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 12px;
+                -webkit-tap-highlight-color: transparent;
+                user-select: none;
+                touch-action: manipulation;
+            }
+            .wst-btn svg { width: 20px; height: 20px; }
+            .wst-btn:active, .wst-step:active, .wst-size-btn:active { background: rgba(255,255,255,0.12); }
+            .wst-btn.wst-icon { min-width: 36px; }
+            .wst-btn.wst-danger { color: #f87171; }
+            .wst-btn.wst-danger:active { background: rgba(248,113,113,0.15); }
+            .wst-step {
+                min-width: 44px; font-weight: 700; color: var(--accent, #2d8ceb);
+                background: rgba(45,140,235,0.12); border-color: rgba(45,140,235,0.3);
+            }
+            .wst-step.active-10 {
+                color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.3);
+            }
+            .wst-spacer { flex: 1; }
+            .wst-size {
+                display: inline-flex; align-items: center; gap: 4px;
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.06);
+                border-radius: 10px;
+                padding: 3px 6px;
+            }
+            .wst-label {
+                font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+                color: var(--muted, #9ca3af);
+                padding-right: 2px;
+            }
+            .wst-size-btn { min-width: 34px; height: 34px; font-size: 16px; font-weight: 600; }
+            .wst-size-val {
+                min-width: 42px; text-align: center;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 13px; font-weight: 600;
+                color: var(--text, #e0e0e0);
+            }
+            /* When the selection toolbar is visible, lift the zoom bar above it */
+            body.wst-active #mobileZoomBar {
+                bottom: calc(170px + env(safe-area-inset-bottom)) !important;
+            }
+            /* Locked state on lock button */
+            #wstLockBtn.locked { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.3); }
+        }
         /* ── All touch devices (≤900px): bottom action bar, sidebar overlay ── */
         @media (max-width: 900px) {
           .mobile-sidebar-fab { display: none !important; } /* retired — replaced by action bar */
@@ -11316,6 +11422,54 @@
     <span>More</span>
   </button>
 </nav>
+<!-- Widget selection toolbar (shown only when a widget is selected on touch/mobile) -->
+<div id="widgetSelToolbar" aria-hidden="true">
+  <div class="wst-row wst-row-1">
+    <button class="wst-btn" data-nudge="left"  aria-label="Move left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg>
+    </button>
+    <button class="wst-btn" data-nudge="up"    aria-label="Move up">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+    </button>
+    <button class="wst-btn" data-nudge="down"  aria-label="Move down">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <button class="wst-btn" data-nudge="right" aria-label="Move right">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+    </button>
+    <button class="wst-step" id="wstStepBtn" aria-label="Step size" title="Tap to toggle nudge step">1px</button>
+    <div class="wst-spacer"></div>
+    <button class="wst-btn wst-icon" data-act="duplicate" aria-label="Duplicate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <button class="wst-btn wst-icon" data-act="lock" id="wstLockBtn" aria-label="Lock">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
+    <button class="wst-btn wst-icon" data-act="back" aria-label="Send back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="12" height="12" rx="1"/><path d="M9 9h12v12H9"/></svg>
+    </button>
+    <button class="wst-btn wst-icon" data-act="forward" aria-label="Bring forward">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="1"/><path d="M3 3h12v12H3"/></svg>
+    </button>
+    <button class="wst-btn wst-icon wst-danger" data-act="delete" aria-label="Delete">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  </div>
+  <div class="wst-row wst-row-2">
+    <div class="wst-size">
+      <span class="wst-label">W</span>
+      <button class="wst-size-btn" data-size="w-minus" aria-label="Decrease width">−</button>
+      <span class="wst-size-val" id="wstW">0</span>
+      <button class="wst-size-btn" data-size="w-plus"  aria-label="Increase width">+</button>
+    </div>
+    <div class="wst-size">
+      <span class="wst-label">H</span>
+      <button class="wst-size-btn" data-size="h-minus" aria-label="Decrease height">−</button>
+      <span class="wst-size-val" id="wstH">0</span>
+      <button class="wst-size-btn" data-size="h-plus"  aria-label="Increase height">+</button>
+    </div>
+  </div>
+</div>
 <script>
 /* Inline SVG icons for the More menu (24×24, stroke-based, currentColor) */
 var _menuIcons = {
@@ -11528,8 +11682,142 @@ function _updateUndoRedoButtons() {
   redoBtn.setAttribute('aria-disabled', canRedo ? 'false' : 'true');
 }
 
-// Poll — selection and history state are mutated directly without events
-setInterval(function() { _updateMobilePropsButton(); _updateUndoRedoButtons(); }, 300);
+/* ── Widget Selection Toolbar (mobile) ──────────────────────────────── */
+var _wstStep = 1;           // current nudge/resize step (1 or 10)
+var _wstLastIdx = -1;       // last rendered selection index (to know when to refresh readouts)
+
+function _wstGetWidget() {
+  if (typeof selectedIndex === 'undefined' || selectedIndex < 0) return null;
+  if (!currentLayout || !currentLayout.widgets) return null;
+  return currentLayout.widgets[selectedIndex] || null;
+}
+
+function _wstApplyField(field, delta) {
+  var w = _wstGetWidget();
+  if (!w) return;
+  if (w.locked && (field === 'x' || field === 'y' || field === 'w' || field === 'h')) return;
+  var cur = w[field] || 0;
+  var next = cur + delta;
+  if ((field === 'w' || field === 'h') && next < 1) next = 1;
+  if (typeof updateWidgetField === 'function') {
+    updateWidgetField(field, next, true);
+  } else {
+    w[field] = next;
+    if (typeof renderEditor === 'function') renderEditor();
+  }
+}
+
+function _wstNudge(dir) {
+  var step = _wstStep;
+  if (dir === 'left')  _wstApplyField('x', -step);
+  if (dir === 'right') _wstApplyField('x',  step);
+  if (dir === 'up')    _wstApplyField('y', -step);
+  if (dir === 'down')  _wstApplyField('y',  step);
+}
+
+function _wstResize(which) {
+  var step = _wstStep;
+  if (which === 'w-minus') _wstApplyField('w', -step);
+  if (which === 'w-plus')  _wstApplyField('w',  step);
+  if (which === 'h-minus') _wstApplyField('h', -step);
+  if (which === 'h-plus')  _wstApplyField('h',  step);
+}
+
+function _wstToggleStep() {
+  _wstStep = _wstStep === 1 ? 10 : 1;
+  var b = document.getElementById('wstStepBtn');
+  if (b) {
+    b.textContent = _wstStep + 'px';
+    b.classList.toggle('active-10', _wstStep === 10);
+  }
+}
+
+function _wstAction(act) {
+  var w = _wstGetWidget();
+  if (!w && act !== 'delete') return;
+  if (act === 'duplicate' && typeof duplicateWidget === 'function') { duplicateWidget(); return; }
+  if (act === 'delete'    && typeof deleteWidget    === 'function') { deleteWidget();    return; }
+  if (act === 'back'      && typeof bumpZOrder      === 'function') { bumpZOrder(-1);    return; }
+  if (act === 'forward'   && typeof bumpZOrder      === 'function') { bumpZOrder(1);     return; }
+  if (act === 'lock') {
+    if (typeof pushHistory === 'function') pushHistory();
+    w.locked = !w.locked;
+    if (typeof renderEditor === 'function') renderEditor();
+    if (typeof updateInspector === 'function') updateInspector();
+    _wstUpdate();
+  }
+}
+
+/* Hold-to-repeat helper: tap = single action, press-and-hold = repeating */
+function _wstBindRepeat(el, fn) {
+  var timer = null, interval = null;
+  var start = function(e) {
+    fn();
+    timer = setTimeout(function() {
+      interval = setInterval(fn, 50);
+    }, 380);
+  };
+  var stop = function() {
+    if (timer)    { clearTimeout(timer);  timer = null; }
+    if (interval) { clearInterval(interval); interval = null; }
+  };
+  el.addEventListener('pointerdown', function(e) { e.preventDefault(); start(e); });
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointerleave', stop);
+  el.addEventListener('pointercancel', stop);
+  el.addEventListener('click', function(e) { e.preventDefault(); });
+}
+
+function _wstUpdate() {
+  var tb = document.getElementById('widgetSelToolbar');
+  if (!tb) return;
+  var w = _wstGetWidget();
+  var hasSingle = !!w;
+  if (hasSingle) {
+    tb.classList.add('visible');
+    tb.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('wst-active');
+    var wEl = document.getElementById('wstW');
+    var hEl = document.getElementById('wstH');
+    if (wEl) wEl.textContent = (w.w != null ? w.w : 0);
+    if (hEl) hEl.textContent = (w.h != null ? w.h : 0);
+    var lockBtn = document.getElementById('wstLockBtn');
+    if (lockBtn) lockBtn.classList.toggle('locked', !!w.locked);
+    _wstLastIdx = selectedIndex;
+  } else {
+    tb.classList.remove('visible');
+    tb.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('wst-active');
+    _wstLastIdx = -1;
+  }
+}
+
+(function setupWidgetSelToolbar() {
+  var tb = document.getElementById('widgetSelToolbar');
+  if (!tb) return;
+  // Nudge buttons with hold-repeat
+  tb.querySelectorAll('.wst-btn[data-nudge]').forEach(function(btn) {
+    _wstBindRepeat(btn, function() { _wstNudge(btn.dataset.nudge); });
+  });
+  // Size steppers with hold-repeat
+  tb.querySelectorAll('.wst-size-btn[data-size]').forEach(function(btn) {
+    _wstBindRepeat(btn, function() { _wstResize(btn.dataset.size); _wstUpdate(); });
+  });
+  // Step toggle
+  var stepBtn = document.getElementById('wstStepBtn');
+  if (stepBtn) stepBtn.addEventListener('click', _wstToggleStep);
+  // Quick-action icons
+  tb.querySelectorAll('.wst-btn[data-act]').forEach(function(btn) {
+    btn.addEventListener('click', function() { _wstAction(btn.dataset.act); });
+  });
+})();
+
+// Poll — selection, history, and toolbar state are mutated directly without events
+setInterval(function() {
+  _updateMobilePropsButton();
+  _updateUndoRedoButtons();
+  _wstUpdate();
+}, 250);
 </script>
 
 </body>
