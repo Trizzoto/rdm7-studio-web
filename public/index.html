@@ -1988,10 +1988,34 @@
           color: white; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.3);
           cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); font-size: 20px;
         }
-        /* ── All touch devices (≤900px): sidebar overlay, touch controls ── */
+        /* ── Bottom action bar (hidden on desktop) ── */
+        #mobileActionBar { display: none; }
+        #mobileActionBar button { -webkit-tap-highlight-color: transparent; }
+        /* ── All touch devices (≤900px): bottom action bar, sidebar overlay ── */
         @media (max-width: 900px) {
-          .mobile-sidebar-fab { display: flex !important; }
-          #mobileZoomBar { display: flex !important; }
+          .mobile-sidebar-fab { display: none !important; } /* retired — replaced by action bar */
+          #mobileZoomBar { display: flex !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
+          #mobileActionBar {
+            display: flex !important; position: fixed; left: 0; right: 0; bottom: 0;
+            height: calc(56px + env(safe-area-inset-bottom));
+            padding-bottom: env(safe-area-inset-bottom);
+            background: rgba(20,20,20,0.92); backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border); z-index: 9998;
+            justify-content: space-around; align-items: stretch;
+          }
+          #mobileActionBar button {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 3px; background: transparent; border: 0;
+            color: var(--muted, #9ca3af); font-size: 10px; font-weight: 500;
+            min-height: 44px; cursor: pointer; padding: 4px 2px;
+            transition: color 0.15s ease;
+          }
+          #mobileActionBar button svg { width: 22px; height: 22px; display: block; }
+          #mobileActionBar button.active { color: var(--text, #e0e0e0); }
+          #mobileActionBar button[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
+          #mobileActionBar button[aria-pressed="true"] { color: #4ade80; }
+          #mobileActionBar button:active { background: rgba(255,255,255,0.06); }
           .sidebar-resize { display: none !important; }
           #sigList { display: none !important; }
           .sidebar, .sidebar-right {
@@ -2012,17 +2036,16 @@
           /* Sidebar widget palette items must be tappable */
           .palette-item { touch-action: auto !important; cursor: pointer !important; }
           /* Mobile UI buttons clickable */
-          .mobile-burger, .mobile-sidebar-fab, #mobileZoomBar,
+          .mobile-burger, #mobileActionBar, #mobileActionBar *, #mobileZoomBar,
           .mobile-menu-overlay, .mobile-menu-panel, .sidebar, .sidebar * {
             touch-action: auto !important;
             -webkit-tap-highlight-color: rgba(0,0,0,0.1);
           }
-          .mobile-sidebar-fab { bottom: 70px !important; right: 16px !important; }
-          #mobileZoomBar { bottom: 12px !important; }
           .workspace {
             display: flex !important; flex-direction: column !important;
             overflow: hidden !important;
             grid-template-columns: none !important;
+            padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
           }
           .main-stage, main.main-stage {
             display: flex !important; flex-direction: column !important;
@@ -2067,24 +2090,18 @@
           #webPreviewBanner { display: none !important; }
         }
 
-        /* ── Landscape tablet (601-900px AND tall viewport): compact inline header ── */
+        /* ── Landscape tablet (601-900px AND tall viewport): burger + bottom action bar ── */
         @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) {
-          .mobile-burger { display: none !important; }
+          .mobile-burger {
+            display: flex !important; align-items: center; justify-content: center;
+            width: 36px; height: 36px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; color: var(--text); font-size: 19px; flex-shrink: 0;
+          }
+          .header-items-desktop { display: none !important; }
           header {
-            height: auto !important; min-height: 34px; padding: 2px 4px !important;
+            height: auto !important; min-height: 42px; padding: 6px 10px !important;
             position: sticky !important; top: 0; z-index: 100;
-            flex-wrap: nowrap !important; gap: 2px !important;
-            width: 100% !important; box-sizing: border-box !important;
-            overflow-x: auto !important; overflow-y: hidden !important;
-            -webkit-overflow-scrolling: touch;
           }
-          header select, header button, header .btn {
-            font-size: 9px !important; padding: 2px 5px !important; height: 24px !important;
-            flex-shrink: 0 !important; white-space: nowrap !important;
-          }
-          header .header-divider { margin: 0 1px !important; height: 18px !important; flex-shrink: 0 !important; }
-          header .title { gap: 2px !important; flex-shrink: 0 !important; }
-          header .title img { height: 18px !important; }
           #webPreviewBanner { display: none !important; }
         }
 
@@ -2101,8 +2118,8 @@
             height: auto !important; min-height: 34px; padding: 4px 8px !important;
             position: sticky !important; top: 0; z-index: 100;
           }
-          .mobile-sidebar-fab { display: flex !important; bottom: 6px !important; right: 16px !important; width: 40px !important; height: 40px !important; }
-          #mobileZoomBar { display: flex !important; bottom: 6px !important; }
+          .mobile-sidebar-fab { display: none !important; }
+          #mobileZoomBar { display: flex !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
           .sidebar-resize { display: none !important; }
           .sidebar, .sidebar-right {
             position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
@@ -2405,12 +2422,11 @@
         <div class="top-controls">
             <div class="header-toggles">
                 <button class="header-pill active" id="pillBezel" onclick="toggleHeaderPill(this, 'bezel')">Bezel</button>
-                <button class="header-pill active" id="pillWidgets" onclick="toggleHeaderPill(this, 'widgets')">Widgets</button>
-                <button class="header-pill active" id="pillCrosshair" onclick="toggleHeaderPill(this, 'crosshair')">Crosshair</button>
+                <button class="header-pill" id="pillWidgets" onclick="toggleHeaderPill(this, 'widgets')">Widgets</button>
             </div>
             <!-- Hidden checkboxes for JS compatibility -->
             <input type="checkbox" id="showBezelToggle" checked style="display:none;">
-            <input type="checkbox" id="showWidgetsToggle" checked style="display:none;">
+            <input type="checkbox" id="showWidgetsToggle" style="display:none;">
         </div><!-- .top-controls (toggles) -->
         <div class="header-items-desktop" style="display:contents;">
             <div class="header-divider"></div>
@@ -2516,7 +2532,7 @@
                     <div class="canvas-container">
                         <canvas id="screenshotCanvas" width="800" height="480" style="display:none;"></canvas>
                         <canvas id="canvas" width="800" height="480" style="width:800px; height:480px; position:absolute; top:0; left:0;"></canvas>
-                        <div id="interactionLayer">
+                        <div id="interactionLayer" class="hide-widgets">
                             <div id="guideX" class="smart-guide-x"></div>
                             <div id="guideY" class="smart-guide-y"></div>
                         </div>
@@ -7100,19 +7116,20 @@
             _simActive = !_simActive;
             const btn = document.getElementById('pillSimulate');
             const gear = document.getElementById('simSettingsBtn');
+            const mBtn = document.getElementById('mobileSimBtn');
             if (_simActive) {
                 _simEnsureConfigs();
                 _simStartTime = performance.now();
-                btn.style.borderColor = '#4ade80';
-                btn.style.color = '#4ade80';
+                if (btn) { btn.style.borderColor = '#4ade80'; btn.style.color = '#4ade80'; }
                 if (gear) gear.style.display = '';
+                if (mBtn) mBtn.setAttribute('aria-pressed', 'true');
                 _simRafId = requestAnimationFrame(_simLoop);
             } else {
                 if (_simRafId) cancelAnimationFrame(_simRafId);
                 _simRafId = null;
-                btn.style.borderColor = '';
-                btn.style.color = '';
+                if (btn) { btn.style.borderColor = ''; btn.style.color = ''; }
                 if (gear) gear.style.display = 'none';
+                if (mBtn) mBtn.setAttribute('aria-pressed', 'false');
                 /* Reset all signals to 0 */
                 for (const name of Object.keys(_simConfigs)) {
                     injectWasmSignal(name, 0);
@@ -7122,9 +7139,12 @@
 
         function _updateSimButton() {
             const btn = document.getElementById('pillSimulate');
-            if (!btn) return;
-            if (_simActive) { btn.style.borderColor = '#4ade80'; btn.style.color = '#4ade80'; }
-            else { btn.style.borderColor = ''; btn.style.color = ''; }
+            const mBtn = document.getElementById('mobileSimBtn');
+            if (btn) {
+                if (_simActive) { btn.style.borderColor = '#4ade80'; btn.style.color = '#4ade80'; }
+                else { btn.style.borderColor = ''; btn.style.color = ''; }
+            }
+            if (mBtn) mBtn.setAttribute('aria-pressed', _simActive ? 'true' : 'false');
         }
 
         /* ── Simulation Settings Modal ──────────────────────────── */
@@ -11180,72 +11200,130 @@
   </div>
   <div id="mobileMenuContent"></div>
 </div>
-<button class="mobile-sidebar-fab" onclick="toggleMobileSidebar()">&#9881;</button>
+<button class="mobile-sidebar-fab" onclick="toggleMobileSidebar()" style="display:none !important;">&#9881;</button>
 <!-- Floating zoom controls (visible on all screen sizes) -->
 <div id="mobileZoomBar" style="display:flex;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9995;background:rgba(30,30,30,0.9);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);border-radius:24px;padding:4px 8px;gap:4px;align-items:center;">
   <button onclick="zoomLevel=Math.max(0.15,zoomLevel-0.1);updateCanvasTransform();" style="width:36px;height:36px;border:none;background:transparent;color:white;font-size:18px;cursor:pointer;border-radius:50%;">−</button>
   <button onclick="zoomToFit();" style="min-width:50px;height:36px;border:none;background:transparent;color:white;font-size:11px;cursor:pointer;font-weight:600;" id="mobileZoomLabel">Fit</button>
   <button onclick="zoomLevel=Math.min(3.0,zoomLevel+0.1);updateCanvasTransform();" style="width:36px;height:36px;border:none;background:transparent;color:white;font-size:18px;cursor:pointer;border-radius:50%;">+</button>
 </div>
+<!-- Mobile bottom action bar (≤900px only, shown via CSS) -->
+<nav id="mobileActionBar" role="toolbar" aria-label="Primary actions">
+  <button data-action="widgets" aria-label="Widgets">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Widgets</span>
+  </button>
+  <button data-action="properties" aria-label="Properties" aria-disabled="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="8.01"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+    <span>Properties</span>
+  </button>
+  <button data-action="sim" id="mobileSimBtn" aria-label="Simulate" aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+    <span>Sim</span>
+  </button>
+  <button data-action="layers" aria-label="Layers">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+    <span>Layers</span>
+  </button>
+  <button data-action="more" aria-label="More">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
 <script>
+/* Inline SVG icons for the More menu (24×24, stroke-based, currentColor) */
+var _menuIcons = {
+  save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  copy:     '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  plus:     '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  edit:     '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  upload:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  camera:   '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  gauge:    '<path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  hardware: '<rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8.01"/><line x1="10" y1="8" x2="10" y2="8.01"/><line x1="14" y1="8" x2="14" y2="8.01"/><line x1="18" y1="8" x2="18" y2="8.01"/><line x1="6" y1="16" x2="18" y2="16"/>',
+  sliders:  '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  shop:     '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  help:     '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
+  trash:    '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'
+};
+function _iconSvg(name) {
+  var path = _menuIcons[name];
+  if (!path) return '';
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0;margin-right:12px;">' + path + '</svg>';
+}
 function openMobileMenu() {
   document.getElementById('mobileMenuOverlay').classList.add('active');
   document.getElementById('mobileMenuPanel').classList.add('active');
   var content = document.getElementById('mobileMenuContent');
   content.innerHTML = ''; /* rebuild each time to pick up dynamic state */
-  /* Build menu with ALL desktop options */
-  var menuItems = [
-    { type: 'select', id: 'screenSizeSelect' },
-    { type: 'select', id: 'screenModeSelect' },
-    { type: 'select', id: 'layoutSelect' },
-    { type: 'divider' },
-    { type: 'button', label: 'Save', onclick: 'saveActiveLayout()' },
-    { type: 'button', label: 'Save As', onclick: 'saveAsNewLayout()' },
-    { type: 'divider' },
-    { type: 'button', label: 'New Layout...', onclick: 'layoutEditorNew()' },
-    { type: 'button', label: 'Rename...', onclick: 'renameCurrentLayout()' },
-    { type: 'button', label: 'Import Layout', onclick: 'importRdm()' },
-    { type: 'button', label: 'Export Layout', onclick: 'exportRdm()' },
-    { type: 'button', label: 'Screenshot', onclick: 'screenshotCanvas()' },
-    { type: 'divider' },
-    { type: 'button', label: 'Device Manager...', onclick: 'openDeviceManager()' },
-    { type: 'button', label: 'Device Settings...', onclick: 'openDeviceSettings()' },
-    { type: 'button', label: 'Signal Dashboard...', onclick: 'openSignalDashboard()' },
-    { type: 'button', label: 'Data Logger...', onclick: 'openDataLogger()' },
-    { type: 'button', label: 'Fuel Calibration...', onclick: 'openFuelCalibration()' },
-    { type: 'divider' },
-    { type: 'button', label: 'Marketplace...', onclick: 'openMarketplace()' },
-    { type: 'divider' },
-    { type: 'button', label: 'Sim', onclick: 'toggleSimulation()' },
-    { type: 'button', label: 'Reset View', onclick: 'resetView()' },
-    { type: 'button', label: 'Help', onclick: "document.getElementById('helpModal').style.display='flex'" },
-    { type: 'divider' },
-    { type: 'button', label: 'Delete Layout', onclick: 'deleteCurrentLayout()', style: 'color:hsl(0,70%,60%)' },
+
+  var menuSections = [
+    { heading: 'Layout', items: [
+      { type: 'select', id: 'layoutSelect' },
+      { type: 'button', label: 'Save',     icon: 'save', onclick: 'saveActiveLayout()' },
+      { type: 'button', label: 'Save As…', icon: 'copy', onclick: 'saveAsNewLayout()' },
+      { type: 'button', label: 'New…',     icon: 'plus', onclick: 'layoutEditorNew()' },
+      { type: 'button', label: 'Rename…',  icon: 'edit', onclick: 'renameCurrentLayout()' },
+    ]},
+    { heading: 'Screen', items: [
+      { type: 'select', id: 'screenSizeSelect' },
+      { type: 'select', id: 'screenModeSelect' },
+    ]},
+    { heading: 'File', items: [
+      { type: 'button', label: 'Import Layout', icon: 'upload',   onclick: 'importRdm()' },
+      { type: 'button', label: 'Export Layout', icon: 'download', onclick: 'exportRdm()' },
+      { type: 'button', label: 'Screenshot',    icon: 'camera',   onclick: 'screenshotCanvas()' },
+    ]},
+    { heading: 'Tools', items: [
+      { type: 'button', label: 'Signal Dashboard…', icon: 'activity', onclick: 'openSignalDashboard()' },
+      { type: 'button', label: 'Data Logger…',      icon: 'database', onclick: 'openDataLogger()' },
+      { type: 'button', label: 'Fuel Calibration…', icon: 'gauge',    onclick: 'openFuelCalibration()' },
+      { type: 'button', label: 'Device Manager…',   icon: 'hardware', onclick: 'openDeviceManager()' },
+      { type: 'button', label: 'Device Settings…',  icon: 'sliders',  onclick: 'openDeviceSettings()' },
+    ]},
+    { heading: 'Community', items: [
+      { type: 'button', label: 'Marketplace…', icon: 'shop', onclick: 'openMarketplace()' },
+    ]},
+    { heading: 'View', items: [
+      { type: 'button', label: 'Reset View', icon: 'maximize', onclick: 'resetView()' },
+      { type: 'button', label: 'Help',       icon: 'help',     onclick: "document.getElementById('helpModal').style.display='flex'" },
+    ]},
+    { heading: 'Danger zone', items: [
+      { type: 'button', label: 'Delete Layout', icon: 'trash', onclick: 'deleteCurrentLayout()', danger: true },
+    ]},
   ];
-  menuItems.forEach(function(mi) {
-    if (mi.type === 'divider') {
-      var d = document.createElement('div');
-      d.style.cssText = 'border-top:1px solid var(--border);margin:8px 0;';
-      content.appendChild(d);
-    } else if (mi.type === 'select' && mi.id) {
-      var orig = document.getElementById(mi.id);
-      if (orig) {
-        var clone = orig.cloneNode(true);
-        clone.id = ''; /* avoid duplicate IDs */
-        clone.style.cssText = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px;height:38px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;';
-        /* Sync changes back to original */
-        clone.onchange = function() { orig.value = this.value; orig.dispatchEvent(new Event('change')); };
-        content.appendChild(clone);
+
+  menuSections.forEach(function(section) {
+    var h = document.createElement('div');
+    h.textContent = section.heading;
+    h.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted,#9ca3af);padding:14px 4px 6px;';
+    content.appendChild(h);
+
+    section.items.forEach(function(mi) {
+      if (mi.type === 'select' && mi.id) {
+        var orig = document.getElementById(mi.id);
+        if (orig) {
+          var clone = orig.cloneNode(true);
+          clone.id = '';
+          clone.style.cssText = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px;height:40px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;';
+          clone.onchange = function() { orig.value = this.value; orig.dispatchEvent(new Event('change')); };
+          content.appendChild(clone);
+        }
+      } else if (mi.type === 'button') {
+        var btn = document.createElement('button');
+        var iconHtml = mi.icon ? _iconSvg(mi.icon) : '';
+        btn.innerHTML = iconHtml + '<span>' + mi.label + '</span>';
+        var color = mi.danger ? 'hsl(0,70%,62%)' : 'var(--text)';
+        var border = mi.danger ? '1px solid hsla(0,70%,50%,0.35)' : '1px solid var(--border)';
+        btn.style.cssText = 'display:flex;align-items:center;width:100%;margin:4px 0;font-size:14px;padding:0 14px;min-height:44px;background:var(--panel);border:' + border + ';color:' + color + ';border-radius:8px;cursor:pointer;text-align:left;';
+        btn.onclick = function() { closeMobileMenu(); eval(mi.onclick); };
+        content.appendChild(btn);
       }
-    } else if (mi.type === 'button') {
-      var btn = document.createElement('button');
-      btn.textContent = mi.label;
-      var btnStyle = 'display:block;width:100%;margin:4px 0;font-size:13px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;text-align:left;';
-      if (mi.style) btnStyle += mi.style;
-      btn.style.cssText = btnStyle;
-      btn.onclick = function() { closeMobileMenu(); eval(mi.onclick); };
-      content.appendChild(btn);
-    }
+    });
   });
 }
 function closeMobileMenu() {
@@ -11268,6 +11346,89 @@ function toggleMobileSidebar() {
     if (overlay) overlay.classList.add('active');
   }
 }
+
+/* ── Mobile bottom action bar ───────────────────────────────────────── */
+function openSidebarTab(tab) {
+  if (typeof switchRightTab === 'function') switchRightTab(tab);
+  var sidebar = document.querySelector('.sidebar-right') || document.querySelector('.sidebar');
+  var overlay = document.getElementById('mobileMenuOverlay');
+  var panel = document.getElementById('mobileMenuPanel');
+  if (panel) panel.classList.remove('active');
+  if (sidebar && !sidebar.classList.contains('mobile-open')) {
+    sidebar.classList.add('mobile-open');
+    if (overlay) overlay.classList.add('active');
+  }
+  // Highlight the active button
+  document.querySelectorAll('#mobileActionBar button').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.action === tab);
+  });
+}
+function mobileAction(action) {
+  switch (action) {
+    case 'widgets':    openSidebarTab('widgets'); break;
+    case 'properties': openSidebarTab('properties'); break;
+    case 'sim':        if (typeof toggleSimulation === 'function') toggleSimulation(); break;
+    case 'layers':     openSidebarTab('layers'); break;
+    case 'more':       openMobileMenu(); break;
+  }
+}
+(function setupMobileActionBar() {
+  var bar = document.getElementById('mobileActionBar');
+  if (!bar) return;
+  bar.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-action]');
+    if (!btn || btn.getAttribute('aria-disabled') === 'true') return;
+    mobileAction(btn.dataset.action);
+  });
+  // Long-press on Sim → open Sim Settings
+  var simBtn = document.getElementById('mobileSimBtn');
+  if (simBtn) {
+    var pressTimer = null;
+    var longPressed = false;
+    simBtn.addEventListener('pointerdown', function() {
+      longPressed = false;
+      pressTimer = setTimeout(function() {
+        longPressed = true;
+        if (typeof openSimSettings === 'function') openSimSettings();
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, 500);
+    });
+    var cancel = function(e) {
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = null;
+      if (longPressed && e) { e.preventDefault(); e.stopPropagation(); }
+    };
+    simBtn.addEventListener('pointerup', function(e) {
+      if (longPressed) { e.preventDefault(); e.stopPropagation(); }
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = null;
+    });
+    simBtn.addEventListener('pointerleave', cancel);
+    simBtn.addEventListener('pointercancel', cancel);
+    simBtn.addEventListener('click', function(e) {
+      if (longPressed) { e.preventDefault(); e.stopPropagation(); longPressed = false; }
+    }, true);
+  }
+  // Close sidebar handler: when sidebar closes (e.g. via overlay tap), clear active state
+  var overlay = document.getElementById('mobileMenuOverlay');
+  if (overlay) {
+    overlay.addEventListener('click', function() {
+      document.querySelectorAll('#mobileActionBar button').forEach(function(b) {
+        if (b.dataset.action !== 'sim') b.classList.remove('active');
+      });
+    });
+  }
+})();
+
+/* Enable/disable Properties button based on whether a widget is selected */
+function _updateMobilePropsButton() {
+  var btn = document.querySelector('#mobileActionBar button[data-action="properties"]');
+  if (!btn) return;
+  var hasSelection = typeof selectedWidget !== 'undefined' && selectedWidget !== null;
+  btn.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
+}
+// Poll once a second — selection state is mutated directly without events
+setInterval(_updateMobilePropsButton, 500);
 </script>
 
 </body>
