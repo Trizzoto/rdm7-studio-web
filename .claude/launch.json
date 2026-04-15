@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "public", "-l", "3002"],
+      "port": 3002
+    },
+    {
+      "name": "hero",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "hero-prototype", "-l", "3003"],
+      "port": 3003
+    }
+  ]
+}

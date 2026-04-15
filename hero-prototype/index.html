@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RDM-7 — Premium Digital Dash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-60px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(60px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes revealBar {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    @keyframes grain {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-2%, -2%); }
+      30% { transform: translate(3%, 1%); }
+      50% { transform: translate(-1%, 3%); }
+      70% { transform: translate(2%, -1%); }
+      90% { transform: translate(-3%, 2%); }
+    }
+    @keyframes tickerScroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+
+    :root {
+      --black: #060606;
+      --surface: #111111;
+      --surface-2: #1a1a1a;
+      --surface-3: #222222;
+      --text: #e8e8e8;
+      --text-dim: #777777;
+      --text-faint: #444444;
+      --red: #cc0000;
+      --red-glow: #ff1a1a;
+      --green: #00cc44;
+      --border: #1e1e1e;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--black);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ===== FILM GRAIN OVERLAY ===== */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      animation: grain 0.5s steps(1) infinite;
+      opacity: 0.5;
+    }
+
+    /* ===== NAV ===== */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(6, 6, 6, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px;
+    }
+
+    .nav-logo img { height: 28px; }
+
+    .nav-links {
+      display: flex; align-items: center; gap: 32px; list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-links .arrow { opacity: 0.4; margin-left: 3px; font-size: 0.65rem; }
+
+    .nav-cta {
+      background: var(--red);
+      color: white;
+      padding: 8px 22px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: background 0.2s, box-shadow 0.3s;
+    }
+
+    .nav-cta:hover {
+      background: var(--red-glow);
+      box-shadow: 0 0 20px rgba(255, 26, 26, 0.3);
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      align-items: center;
+      padding: 60px 48px 0;
+      gap: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Diagonal red shard behind right column */
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 70%;
+      height: 140%;
+      background: linear-gradient(155deg, transparent 40%, rgba(204, 0, 0, 0.03) 40%, rgba(204, 0, 0, 0.06) 60%, transparent 60%);
+      pointer-events: none;
+      transform: skewX(-5deg);
+    }
+
+    /* Ambient red glow */
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -200px;
+      right: 10%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(204, 0, 0, 0.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      padding: 80px 0;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 28px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      width: 32px;
+      height: 2px;
+      background: var(--red);
+    }
+
+    .hero-title {
+      font-size: clamp(3.2rem, 5.5vw, 5rem);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+      animation: fadeUp 0.6s ease 0.1s both;
+    }
+
+    .hero-title .line-2 {
+      color: var(--red);
+      display: block;
+      position: relative;
+    }
+
+    .hero-desc {
+      font-size: 1.05rem;
+      font-weight: 300;
+      color: var(--text-dim);
+      line-height: 1.7;
+      max-width: 440px;
+      margin-bottom: 40px;
+      animation: fadeUp 0.6s ease 0.2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      animation: fadeUp 0.6s ease 0.3s both;
+    }
+
+    .btn-shop {
+      background: var(--red);
+      color: white;
+      padding: 14px 36px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.2s, box-shadow 0.3s, transform 0.2s;
+    }
+
+    .btn-shop:hover {
+      background: var(--red-glow);
+      box-shadow: 0 4px 30px rgba(255, 26, 26, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-shop .arrow-icon {
+      transition: transform 0.2s;
+    }
+
+    .btn-shop:hover .arrow-icon {
+      transform: translateX(3px);
+    }
+
+    .btn-studio {
+      background: transparent;
+      color: var(--text);
+      padding: 14px 32px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      border: 1px solid var(--surface-3);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .btn-studio:hover {
+      border-color: #444;
+      transform: translateY(-1px);
+    }
+
+    .btn-studio .ext { font-size: 0.7rem; opacity: 0.5; }
+
+    /* ===== HERO VISUAL — stacked dashboard showcase ===== */
+    .hero-visual {
+      position: relative;
+      z-index: 2;
+      animation: scaleIn 0.8s ease 0.15s both;
+    }
+
+    .dash-stack {
+      position: relative;
+      width: 100%;
+      /* Main image is the focused one; others peek behind */
+    }
+
+    .dash-frame {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #222;
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    }
+
+    .dash-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Placeholder styled as actual dashboard mockup */
+    .dash-placeholder {
+      aspect-ratio: 800 / 480;
+      background: #0a0a0a;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* RPM bar at top */
+    .dp-rpm {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 28px;
+      background: linear-gradient(90deg,
+        #00cc00 0%, #00cc00 30%,
+        #44dd00 30%, #66ee00 45%,
+        #aaee00 45%, #cccc00 55%,
+        #ee8800 55%, #cc0000 70%,
+        #990000 70%, #660000 85%,
+        #440000 85%, #220000 100%
+      );
+      display: flex;
+      align-items: flex-end;
+      padding: 0 2px 2px;
+    }
+
+    .dp-rpm-ticks {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+      padding: 0 8px;
+    }
+
+    .dp-rpm-ticks span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      font-weight: 700;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+
+    /* Indicator dots row */
+    .dp-indicators {
+      position: absolute;
+      top: 34px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .dp-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    .dp-dot.grey { background: #444; }
+    .dp-dot.orange { background: #ff8800; box-shadow: 0 0 6px #ff8800; }
+    .dp-dot.red { background: #ff0000; box-shadow: 0 0 6px #ff0000; }
+    .dp-dot.green { background: #00cc44; box-shadow: 0 0 6px #00cc44; }
+    .dp-dot.blue { background: #0066ff; }
+
+    .dp-dot-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 6px;
+      color: #666;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    /* RPM value center */
+    .dp-rpm-val {
+      position: absolute;
+      top: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .dp-rpm-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7px;
+      color: #666;
+      letter-spacing: 0.15em;
+    }
+
+    .dp-rpm-number {
+      font-family: 'Sora', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: white;
+    }
+
+    /* Data cells grid */
+    .dp-grid {
+      position: absolute;
+      top: 75px;
+      left: 12px;
+      right: 12px;
+      bottom: 40px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .dp-cell {
+      border: 1px solid #333;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+
+    .dp-cell.warn {
+      border-color: var(--red);
+    }
+
+    .dp-cell.accent {
+      border-color: #0044cc;
+    }
+
+    .dp-cell-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 5.5px;
+      font-weight: 700;
+      color: #888;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .dp-cell-val {
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* Speed big number */
+    .dp-speed {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 5;
+    }
+
+    .dp-speed-num {
+      font-family: 'Sora', sans-serif;
+      font-size: 42px;
+      font-weight: 800;
+      color: white;
+      line-height: 1;
+    }
+
+    .dp-speed-unit {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      color: #666;
+      letter-spacing: 0.1em;
+    }
+
+    /* Bottom bars */
+    .dp-bars {
+      position: absolute;
+      bottom: 8px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      gap: 32px;
+    }
+
+    .dp-bar-group {
+      flex: 1;
+    }
+
+    .dp-bar-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 6px;
+      color: #666;
+      letter-spacing: 0.1em;
+      margin-bottom: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .dp-bar-track {
+      height: 8px;
+      background: #1a1a1a;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .dp-bar-fill {
+      height: 100%;
+      border-radius: 1px;
+    }
+
+    .dp-bar-fill.blue { background: #2277ff; width: 65%; }
+    .dp-bar-fill.green { background: #00cc44; width: 54%; }
+    .dp-bar-fill.yellow { background: #cccc00; width: 78%; }
+
+    /* Floating cards behind main */
+    .dash-bg-card {
+      position: absolute;
+      width: 75%;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #1a1a1a;
+    }
+
+    .dash-bg-card.left {
+      top: 15%;
+      left: -12%;
+      transform: rotate(-3deg);
+      opacity: 0.25;
+      z-index: 0;
+      animation: slideInLeft 0.8s ease 0.3s both;
+    }
+
+    .dash-bg-card.right {
+      bottom: 8%;
+      right: -10%;
+      transform: rotate(2deg);
+      opacity: 0.2;
+      z-index: 0;
+      animation: slideInRight 0.8s ease 0.4s both;
+    }
+
+    .dash-bg-card .dash-placeholder-mini {
+      aspect-ratio: 800 / 480;
+      background: #0a0a0a;
+    }
+
+    /* ===== SPEC TICKER ===== */
+    .ticker-wrap {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      white-space: nowrap;
+      position: relative;
+      z-index: 2;
+    }
+
+    .ticker {
+      display: inline-flex;
+      animation: tickerScroll 25s linear infinite;
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 48px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .ticker-item .val {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .ticker-item .val .red { color: var(--red); }
+
+    .ticker-sep {
+      color: var(--text-faint);
+      padding: 0 8px;
+    }
+
+    /* ===== FEATURES GRID ===== */
+    .features {
+      padding: 100px 48px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      position: relative;
+      z-index: 2;
+    }
+
+    .feature-cell {
+      background: var(--black);
+      padding: 48px 32px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.3s;
+    }
+
+    .feature-cell:hover {
+      background: var(--surface);
+    }
+
+    .feature-cell:hover .feature-icon {
+      color: var(--red);
+    }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: var(--text-faint);
+      transition: color 0.3s;
+      display: block;
+    }
+
+    .feature-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-desc {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 960px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 80px 32px 40px;
+        min-height: auto;
+      }
+
+      .hero-content { padding: 40px 0 0; text-align: center; }
+      .hero-desc { margin-left: auto; margin-right: auto; }
+      .hero-actions { justify-content: center; }
+
+      .features {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 60px 32px;
+      }
+
+      nav { padding: 0 24px; }
+      .nav-links { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 80px 20px 32px; }
+      .hero-actions { flex-direction: column; align-items: center; }
+      .btn-shop, .btn-studio { width: 100%; max-width: 300px; justify-content: center; }
+      .features { grid-template-columns: 1fr; padding: 40px 20px; }
+      .feature-cell { padding: 32px 24px; }
+      .dash-bg-card { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">
+      <img src="../public/RDM Logo.png" alt="RDM">
+    </div>
+    <ul class="nav-links">
+      <li><a href="#">Products</a></li>
+      <li><a href="#">RDM Studio <span class="arrow">↗</span></a></li>
+      <li><a href="#">Support</a></li>
+      <li><a href="#">About</a></li>
+      <li><a href="#">Downloads</a></li>
+    </ul>
+    <a href="#" class="nav-cta">Shop Now</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-eyebrow">All New</div>
+      <h1 class="hero-title">
+        Meet the
+        <span class="line-2">RDM-7.</span>
+      </h1>
+      <p class="hero-desc">
+        A premium digital dash without the premium price tag.
+        Sub-2ms refresh rate, fully customisable display,
+        native CAN bus — built for the track.
+      </p>
+      <div class="hero-actions">
+        <a href="#" class="btn-shop">
+          Shop Now <span class="arrow-icon">→</span>
+        </a>
+        <a href="#" class="btn-studio">
+          Open Studio <span class="ext">↗</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="dash-stack">
+        <!-- Background floating cards -->
+        <div class="dash-bg-card left"><div class="dash-placeholder-mini"></div></div>
+        <div class="dash-bg-card right"><div class="dash-placeholder-mini"></div></div>
+
+        <!-- Main dashboard display -->
+        <div class="dash-frame" style="position: relative; z-index: 2;">
+          <div class="dash-placeholder">
+            <!-- RPM Bar -->
+            <div class="dp-rpm">
+              <div class="dp-rpm-ticks">
+                <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+              </div>
+            </div>
+
+            <!-- RPM readout -->
+            <div class="dp-rpm-val">
+              <div class="dp-rpm-label">RPM</div>
+              <div class="dp-rpm-number">4000</div>
+            </div>
+
+            <!-- Speed -->
+            <div class="dp-speed">
+              <div class="dp-speed-num">61</div>
+              <div class="dp-speed-unit">km/h</div>
+            </div>
+
+            <!-- Data grid -->
+            <div class="dp-grid">
+              <div class="dp-cell">
+                <div class="dp-cell-label">MAP</div>
+                <div class="dp-cell-val">132.54</div>
+              </div>
+              <div class="dp-cell">
+                <div class="dp-cell-label">Lambda</div>
+                <div class="dp-cell-val">0.903</div>
+              </div>
+              <div class="dp-cell">
+                <div class="dp-cell-label">Oil Press</div>
+                <div class="dp-cell-val">71</div>
+              </div>
+              <div class="dp-cell">
+                <div class="dp-cell-label">IAT</div>
+                <div class="dp-cell-val">21</div>
+              </div>
+              <div class="dp-cell warn">
+                <div class="dp-cell-label">Knock</div>
+                <div class="dp-cell-val">36</div>
+              </div>
+              <div class="dp-cell accent">
+                <div class="dp-cell-label">Coolant</div>
+                <div class="dp-cell-val">69.1</div>
+              </div>
+              <div class="dp-cell warn">
+                <div class="dp-cell-label">Knock Cnt</div>
+                <div class="dp-cell-val">6</div>
+              </div>
+              <div class="dp-cell warn">
+                <div class="dp-cell-label">Oil Temp</div>
+                <div class="dp-cell-val">66.5</div>
+              </div>
+            </div>
+
+            <!-- Bottom bars -->
+            <div class="dp-bars">
+              <div class="dp-bar-group">
+                <div class="dp-bar-label"><span>COOLANT</span><span>69 C</span></div>
+                <div class="dp-bar-track"><div class="dp-bar-fill blue"></div></div>
+              </div>
+              <div class="dp-bar-group">
+                <div class="dp-bar-label"><span>GEAR</span><span>6</span></div>
+                <div class="dp-bar-track"><div class="dp-bar-fill green"></div></div>
+              </div>
+              <div class="dp-bar-group">
+                <div class="dp-bar-label"><span>FUEL</span><span>54%</span></div>
+                <div class="dp-bar-track"><div class="dp-bar-fill yellow"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPEC TICKER -->
+  <div class="ticker-wrap">
+    <div class="ticker">
+      <div class="ticker-item"><span class="val">&lt;<span class="red">2</span>ms</span> Refresh Rate</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val"><span class="red">800</span>×480</span> Resolution</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">CAN <span class="red">Bus</span></span> Native</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val"><span class="red">100</span>%</span> Customisable</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">WiFi</span> + USB</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">DBC</span> Import</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">&lt;<span class="red">2</span>ms</span> Refresh Rate</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val"><span class="red">800</span>×480</span> Resolution</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">CAN <span class="red">Bus</span></span> Native</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val"><span class="red">100</span>%</span> Customisable</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">WiFi</span> + USB</div>
+      <span class="ticker-sep">◆</span>
+      <div class="ticker-item"><span class="val">DBC</span> Import</div>
+      <span class="ticker-sep">◆</span>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="feature-cell">
+      <span class="feature-icon">⚡</span>
+      <div class="feature-title">Sub-2ms Refresh</div>
+      <div class="feature-desc">Data updates faster than you can react. No lag, no stutter.</div>
+    </div>
+    <div class="feature-cell">
+      <span class="feature-icon">◎</span>
+      <div class="feature-title">Drag & Drop Designer</div>
+      <div class="feature-desc">Build your layout in RDM Studio. Place widgets, bind signals, ship it.</div>
+    </div>
+    <div class="feature-cell">
+      <span class="feature-icon">⬡</span>
+      <div class="feature-title">CAN Bus Native</div>
+      <div class="feature-desc">Direct protocol support. Plug in, map your signals, go.</div>
+    </div>
+    <div class="feature-cell">
+      <span class="feature-icon">↗</span>
+      <div class="feature-title">Community Marketplace</div>
+      <div class="feature-desc">Download layouts and DBC files shared by the community.</div>
+    </div>
+  </section>
+
+</body>
+</html>
