@@ -2176,6 +2176,26 @@
           }
           .mobile-sidebar-fab { display: none !important; }
           #mobileZoomBar { display: flex !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
+          /* Action bar also needs to show on short viewports at any width (e.g. large phones in landscape >900px wide) */
+          #mobileActionBar {
+            display: flex !important; position: fixed; left: 0; right: 0; bottom: 0;
+            height: calc(56px + env(safe-area-inset-bottom));
+            padding-bottom: env(safe-area-inset-bottom);
+            background: rgba(20,20,20,0.92); backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border); z-index: 9998;
+            justify-content: space-around; align-items: stretch;
+          }
+          #mobileActionBar button {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 3px; background: transparent; border: 0;
+            color: var(--muted, #9ca3af); font-size: 10px; font-weight: 500;
+            min-height: 44px; cursor: pointer; padding: 4px 2px;
+          }
+          #mobileActionBar button svg { width: 22px; height: 22px; display: block; }
+          #mobileActionBar button.active { color: var(--text, #e0e0e0); }
+          #mobileActionBar button[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
+          #mobileActionBar button[aria-pressed="true"] { color: #4ade80; }
           .sidebar-resize { display: none !important; }
           .sidebar, .sidebar-right {
             position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
@@ -2187,6 +2207,7 @@
           .workspace {
             display: flex !important; flex-direction: column !important;
             overflow: hidden !important; grid-template-columns: none !important;
+            padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
           }
           .main-stage, main.main-stage {
             display: flex !important; flex-direction: column !important;
