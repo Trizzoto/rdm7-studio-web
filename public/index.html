@@ -897,6 +897,38 @@
             border-color: #444444;
         }
 
+        .header-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: var(--radius-sm);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.12s;
+        }
+        .header-icon-btn:hover {
+            color: #bbbbbb;
+            background: #383838;
+            border-color: #444444;
+        }
+        .header-icon-btn[aria-disabled="true"] {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+        .header-icon-btn:active {
+            background: #2d2d2d;
+        }
+        /* On mobile the undo/redo pair sits next to the toggles — keep them tappable */
+        @media (max-width: 900px) {
+            .header-icon-btn { width: 32px; height: 32px; }
+            .header-icon-btn svg { width: 18px; height: 18px; }
+        }
+
         .header-pill.active {
             background: var(--bg);
             color: var(--text);
@@ -1122,6 +1154,7 @@
             flex-direction: column-reverse;
             gap: 6px;
             pointer-events: none;
+            max-width: calc(100vw - 24px);
         }
 
         .toast {
@@ -1135,6 +1168,20 @@
             box-shadow: var(--shadow-md);
             white-space: nowrap;
             border: 1px solid hsla(0, 0%, 100%, 0.1);
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Mobile: lift toasts above the bottom action bar + zoom bar, allow wrapping */
+        @media (max-width: 900px) {
+            .toast-container {
+                bottom: calc(130px + env(safe-area-inset-bottom));
+            }
+            .toast {
+                white-space: normal;
+                text-align: center;
+                line-height: 1.35;
+            }
         }
 
         .toast.toast-out {
@@ -1157,8 +1204,17 @@
             border-radius: var(--radius-md);
             padding: 12px 20px;
             min-width: 300px;
+            max-width: calc(100vw - 24px);
+            box-sizing: border-box;
             box-shadow: var(--shadow-md);
             display: none;
+        }
+        @media (max-width: 900px) {
+            .dl-progress-overlay {
+                bottom: calc(170px + env(safe-area-inset-bottom));
+                min-width: 0;
+                width: calc(100vw - 24px);
+            }
         }
         .dl-progress-overlay.visible { display: block; }
         .dl-progress-label {
@@ -2423,6 +2479,15 @@
             <div class="header-toggles">
                 <button class="header-pill active" id="pillBezel" onclick="toggleHeaderPill(this, 'bezel')">Bezel</button>
                 <button class="header-pill" id="pillWidgets" onclick="toggleHeaderPill(this, 'widgets')">Widgets</button>
+            </div>
+            <!-- Undo / Redo (always visible, all breakpoints) -->
+            <div class="header-undo" style="display:flex;gap:2px;margin-left:6px;">
+                <button id="undoBtn" class="header-icon-btn" onclick="undo()" aria-label="Undo" title="Undo (Ctrl+Z)" aria-disabled="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
+                </button>
+                <button id="redoBtn" class="header-icon-btn" onclick="redo()" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" aria-disabled="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 8"/></svg>
+                </button>
             </div>
             <!-- Hidden checkboxes for JS compatibility -->
             <input type="checkbox" id="showBezelToggle" checked style="display:none;">
@@ -11429,8 +11494,21 @@ function _updateMobilePropsButton() {
   var hasSelection = singleSel || multiSel;
   btn.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
 }
-// Poll — selection state is mutated directly without events
-setInterval(_updateMobilePropsButton, 300);
+
+/* Enable/disable undo/redo based on history stack position */
+function _updateUndoRedoButtons() {
+  var undoBtn = document.getElementById('undoBtn');
+  var redoBtn = document.getElementById('redoBtn');
+  if (!undoBtn || !redoBtn) return;
+  if (typeof history === 'undefined' || typeof historyIndex === 'undefined') return;
+  var canUndo = historyIndex >= 1 || (historyIndex === 0 && typeof currentLayout !== 'undefined' && history[0] !== JSON.stringify(currentLayout));
+  var canRedo = historyIndex < history.length - 1;
+  undoBtn.setAttribute('aria-disabled', canUndo ? 'false' : 'true');
+  redoBtn.setAttribute('aria-disabled', canRedo ? 'false' : 'true');
+}
+
+// Poll — selection and history state are mutated directly without events
+setInterval(function() { _updateMobilePropsButton(); _updateUndoRedoButtons(); }, 300);
 </script>
 
 </body>
