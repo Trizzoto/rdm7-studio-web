@@ -2532,7 +2532,7 @@
                     <div class="canvas-container">
                         <canvas id="screenshotCanvas" width="800" height="480" style="display:none;"></canvas>
                         <canvas id="canvas" width="800" height="480" style="width:800px; height:480px; position:absolute; top:0; left:0;"></canvas>
-                        <div id="interactionLayer" class="hide-widgets">
+                        <div id="interactionLayer" class="hide-widgets hide-crosshair">
                             <div id="guideX" class="smart-guide-x"></div>
                             <div id="guideY" class="smart-guide-y"></div>
                         </div>
@@ -11424,11 +11424,13 @@ function mobileAction(action) {
 function _updateMobilePropsButton() {
   var btn = document.querySelector('#mobileActionBar button[data-action="properties"]');
   if (!btn) return;
-  var hasSelection = typeof selectedWidget !== 'undefined' && selectedWidget !== null;
+  var singleSel = (typeof selectedIndex !== 'undefined' && selectedIndex >= 0);
+  var multiSel  = (typeof selectedIndices !== 'undefined' && selectedIndices && selectedIndices.size > 0);
+  var hasSelection = singleSel || multiSel;
   btn.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
 }
-// Poll once a second — selection state is mutated directly without events
-setInterval(_updateMobilePropsButton, 500);
+// Poll — selection state is mutated directly without events
+setInterval(_updateMobilePropsButton, 300);
 </script>
 
 </body>
