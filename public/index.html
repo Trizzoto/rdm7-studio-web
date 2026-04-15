@@ -2128,12 +2128,62 @@
                 font-size: 13px; font-weight: 600;
                 color: var(--text, #e0e0e0);
             }
+            /* Test-value row */
+            .wst-row-test {
+                display: flex; align-items: center; gap: 8px;
+                padding: 4px 8px 4px 6px;
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.06);
+                border-radius: 10px;
+            }
+            .wst-row-test input[type="range"] {
+                flex: 1 1 auto; min-width: 80px;
+                height: 28px;
+                accent-color: var(--accent, #2d8ceb);
+                touch-action: manipulation;
+                cursor: pointer;
+            }
+            .wst-test-val {
+                min-width: 44px; text-align: right;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 12px; font-weight: 600;
+                color: var(--muted, #9ca3af);
+            }
+            .wst-test-val.active { color: var(--accent, #2d8ceb); }
             /* When the selection toolbar is visible, lift the zoom bar above it */
             body.wst-active #mobileZoomBar {
                 bottom: calc(170px + env(safe-area-inset-bottom)) !important;
             }
+            body.wst-active.wst-has-test #mobileZoomBar {
+                bottom: calc(220px + env(safe-area-inset-bottom)) !important;
+            }
             /* Locked state on lock button */
             #wstLockBtn.locked { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.3); }
+        }
+        /* ── Landscape / short viewport: consolidate toolbar to a single row ── */
+        @media (max-height: 500px) {
+            #widgetSelToolbar {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
+                gap: 6px !important;
+                padding: 4px 6px !important;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            #widgetSelToolbar .wst-row {
+                flex: 0 0 auto !important;
+            }
+            #widgetSelToolbar .wst-row-test {
+                flex: 1 1 auto !important;
+                min-width: 160px;
+            }
+            #widgetSelToolbar .wst-row-2 { padding: 0 !important; gap: 6px !important; }
+            /* Zoom bar stays at the higher position since toolbar is now ~52px tall */
+            body.wst-active #mobileZoomBar,
+            body.wst-active.wst-has-test #mobileZoomBar {
+                bottom: calc(130px + env(safe-area-inset-bottom)) !important;
+            }
         }
         /* ── All touch devices (≤900px): bottom action bar, sidebar overlay ── */
         @media (max-width: 900px) {
@@ -11448,6 +11498,12 @@
       <button class="wst-size-btn" data-size="h-plus"  aria-label="Increase height">+</button>
     </div>
   </div>
+  <div class="wst-row wst-row-test" id="wstTestRow" style="display:none;">
+    <span class="wst-label">TEST</span>
+    <input type="range" id="wstTestSlider" min="0" max="100" value="0" step="1" aria-label="Test value">
+    <span class="wst-test-val" id="wstTestVal">—</span>
+    <button class="wst-size-btn" id="wstTestClear" aria-label="Stop test">×</button>
+  </div>
 </div>
 <script>
 /* Inline SVG icons for the More menu (24×24, stroke-based, currentColor) */
@@ -11766,13 +11822,48 @@ function _wstUpdate() {
       var canPaste = (typeof clipboardWidget !== 'undefined') && !!clipboardWidget;
       pasteBtn.setAttribute('aria-disabled', canPaste ? 'false' : 'true');
     }
+    _wstSyncTestRow(w);
     _wstLastIdx = selectedIndex;
   } else {
     tb.classList.remove('visible');
     tb.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('wst-active');
+    document.body.classList.remove('wst-has-test');
     _wstLastIdx = -1;
   }
+}
+
+/* Sync the test-value slider row to the current selection */
+function _wstSyncTestRow(w) {
+  var row    = document.getElementById('wstTestRow');
+  var slider = document.getElementById('wstTestSlider');
+  var valEl  = document.getElementById('wstTestVal');
+  var clr    = document.getElementById('wstTestClear');
+  if (!row || !slider || !valEl || !clr) return;
+  var sig = (typeof _getWidgetSignalName === 'function') ? _getWidgetSignalName(w) : null;
+  if (!sig) {
+    row.style.display = 'none';
+    document.body.classList.remove('wst-has-test');
+    return;
+  }
+  row.style.display = '';
+  document.body.classList.add('wst-has-test');
+  // Bounds
+  var b = (typeof _getTestBounds === 'function') ? _getTestBounds(w) : { min: 0, max: 100, step: 1 };
+  slider.min  = b.min;
+  slider.max  = b.max;
+  slider.step = b.step;
+  // Current value
+  var active = (typeof _testValues !== 'undefined') && (_testValues[sig] !== undefined);
+  var cur = active ? _testValues[sig] : b.min;
+  // Only update the slider value if the user is not actively dragging (avoid fighting thumb)
+  if (document.activeElement !== slider) slider.value = cur;
+  valEl.textContent = active ? String(cur) : '—';
+  valEl.classList.toggle('active', !!active);
+  clr.style.display = active ? '' : 'none';
+  // Remember which signal this row is bound to, for handler dispatch
+  slider.dataset.signal = sig;
+  clr.dataset.signal = sig;
 }
 
 (function setupWidgetSelToolbar() {
@@ -11793,6 +11884,30 @@ function _wstUpdate() {
   tb.querySelectorAll('.wst-btn[data-act]').forEach(function(btn) {
     btn.addEventListener('click', function() { _wstAction(btn.dataset.act); });
   });
+  // Test slider: drive setTestValue; update the readout live
+  var slider = document.getElementById('wstTestSlider');
+  if (slider) {
+    slider.addEventListener('input', function() {
+      var sig = slider.dataset.signal;
+      if (!sig || typeof setTestValue !== 'function') return;
+      var v = parseFloat(slider.value);
+      setTestValue(sig, v);
+      var valEl = document.getElementById('wstTestVal');
+      if (valEl) { valEl.textContent = String(v); valEl.classList.add('active'); }
+      var clr = document.getElementById('wstTestClear');
+      if (clr) clr.style.display = '';
+    });
+  }
+  // Test clear: stop injecting
+  var clearBtn = document.getElementById('wstTestClear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function() {
+      var sig = clearBtn.dataset.signal;
+      if (!sig || typeof clearTestValue !== 'function') return;
+      clearTestValue(sig);
+      _wstUpdate();
+    });
+  }
 })();
 
 // Poll — selection, history, and toolbar state are mutated directly without events
