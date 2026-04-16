@@ -33,9 +33,9 @@
 
 ## Chapter 4 — Bind a signal (45s, ~580 chars)
 
-**On-screen action:** Signal Manager modal fades in. Spotlight on the RPM signal row. A "bind" action highlights, then the modal closes and the widget now shows "→ RPM" as an overlay label on the canvas.
+**On-screen action:** Spotlight moves to the Properties panel — on mobile it's the Properties button in the bottom action bar; on desktop it's the right sidebar's Properties tab. The "Assign Data Source" button pulses. Tapping it opens the Data Source picker with a short list of signals (RPM highlighted). Selecting RPM closes the picker and the widget now shows "→ RPM" as a label on the canvas.
 
-> A widget is just a shape until you connect it to data. Open the Signal Manager — this lists every signal your dashboard can receive. Each signal maps to a CAN ID, a bit position, and a scale factor. The language your car speaks. I'll bind the RPM bar to the RPM signal. You'll see the signal name appear as a label on the widget — that's your confirmation it's wired up.
+> A widget is just a shape until you connect it to data. With the widget selected, open Properties — on mobile it's the Properties button at the bottom, on desktop it's the sidebar on the right. Right there at the top you'll see "Assign Data Source". One tap opens a picker of every signal your dashboard can receive. I'll pick RPM. Done — the widget now shows the signal it's listening to.
 
 ---
 
