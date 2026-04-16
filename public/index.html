@@ -2219,13 +2219,48 @@
           #mobileActionBar button:active { background: rgba(255,255,255,0.06); }
           .sidebar-resize { display: none !important; }
           #sigList { display: none !important; }
+          /* ── Bottom-sheet sidebar (#11) ──
+             On mobile the right sidebar becomes a bottom-sheet: anchored to the bottom
+             of the viewport, partially visible when open, draggable to full-height or
+             dismissed. The action bar opens the sheet (peek→half); a drag handle at the
+             top lets the user resize to full or flick down to close. */
           .sidebar, .sidebar-right {
-            position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
-            width: 300px !important; min-width: 300px !important; max-width: 300px !important;
-            z-index: 9997; transition: right 0.3s ease !important;
-            box-shadow: -4px 0 24px rgba(0,0,0,0.4); overflow-y: auto !important;
+            position: fixed !important; left: 0 !important; right: 0 !important;
+            top: auto !important; bottom: 0 !important;
+            width: auto !important; min-width: 0 !important; max-width: none !important;
+            height: 60vh !important; max-height: 85vh !important;
+            z-index: 9997;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important,
+                        height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+            box-shadow: 0 -6px 28px rgba(0,0,0,0.45);
+            border-top: 1px solid var(--border);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            overflow: hidden !important;
+            display: flex; flex-direction: column;
           }
-          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; z-index: 9999 !important; }
+          .sidebar.mobile-open, .sidebar-right.mobile-open {
+            transform: translateY(0) !important;
+            z-index: 9999 !important;
+          }
+          .sidebar-right.mobile-open.sheet-full { height: 85vh !important; }
+          /* Drag handle at the top of the sheet */
+          .sidebar-right::before, .sidebar::before {
+            content: "";
+            display: block;
+            flex-shrink: 0;
+            width: 44px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border, #444);
+            margin: 8px auto 6px;
+            cursor: grab;
+          }
+          .sidebar-right::before:active, .sidebar::before:active { cursor: grabbing; }
+          /* Tabs stay on top, content scrolls below */
+          .sidebar-right .right-sidebar-tabs, .sidebar .right-sidebar-tabs { flex-shrink: 0; }
+          .sidebar-right .right-tab-content, .sidebar .right-tab-content { overflow-y: auto !important; flex: 1; }
           #workspaceViewport {
             justify-content: flex-start !important; align-items: flex-start !important;
             overflow: hidden !important; touch-action: none !important;
@@ -2342,13 +2377,25 @@
           #mobileActionBar button[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
           #mobileActionBar button[aria-pressed="true"] { color: #4ade80; }
           .sidebar-resize { display: none !important; }
+          /* Bottom-sheet on landscape-phone too (#11). In landscape viewport the sheet
+             should take most of the height since there's less vertical space. */
           .sidebar, .sidebar-right {
-            position: fixed !important; right: -320px !important; top: 0 !important; bottom: 0 !important;
-            width: 300px !important; min-width: 300px !important; max-width: 300px !important;
-            z-index: 9997; transition: right 0.3s ease !important;
-            box-shadow: -4px 0 24px rgba(0,0,0,0.4); overflow-y: auto !important;
+            position: fixed !important; left: 0 !important; right: 0 !important;
+            top: auto !important; bottom: 0 !important;
+            width: auto !important; min-width: 0 !important; max-width: none !important;
+            height: 80vh !important; max-height: 90vh !important;
+            z-index: 9997;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+            box-shadow: 0 -6px 28px rgba(0,0,0,0.45);
+            border-top: 1px solid var(--border);
+            border-top-left-radius: 16px; border-top-right-radius: 16px;
+            overflow: hidden !important;
+            display: flex; flex-direction: column;
           }
-          .sidebar.mobile-open, .sidebar-right.mobile-open { right: 0 !important; z-index: 9999 !important; }
+          .sidebar.mobile-open, .sidebar-right.mobile-open {
+            transform: translateY(0) !important; z-index: 9999 !important;
+          }
           .workspace {
             display: flex !important; flex-direction: column !important;
             overflow: hidden !important; grid-template-columns: none !important;
@@ -9923,8 +9970,10 @@
             showToast(`Exported ${name}.rdm${assetMsg}`, 'success');
         }
 
-        async function importRdm() {
-            async function _processRdmBytes(u8, fileName) {
+        /* Hoisted .rdm byte processor — shared between manual import (importRdm),
+           URL-triggered import (Marketplace Push-to-Dash), and future integrations.
+           Declared at module scope so it's callable before any user-triggered import. */
+        async function _processRdmBytes(u8, fileName) {
                 const arrayBuf = u8.buffer.byteLength === u8.length ? u8.buffer : u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
                 const view = new DataView(arrayBuf);
 
@@ -10026,6 +10075,10 @@
                 showToast(`Imported ${fileName}${assetMsg}`, 'success');
             }
 
+        /* Alias on window for URL-triggered imports (Push-to-Dash) — always available. */
+        if (typeof window !== 'undefined') window._rdmProcessRdmBytes = _processRdmBytes;
+
+        async function importRdm() {
             if (RDM.isTauri()) {
                 const path = await RDM.openFileDialog([{ name: 'RDM Bundle', extensions: ['rdm'] }]);
                 if (!path) return;
@@ -10052,6 +10105,53 @@
                 }
             };
             input.click();
+        }
+
+        /* ── Marketplace Push-to-Dash receiver (#29) ──────────────────────
+           The Marketplace redirects users here with ?import=<url> (a direct download URL
+           to a .rdm file in Supabase Storage). We fetch the blob, feed it through the
+           existing import pipeline, and land the user on a freshly-imported layout.
+           Query params supported:
+             ?import=<url>          — fetch and import the .rdm from that URL
+             ?importName=<name>     — optional friendly name for toast
+         */
+        async function _handleMarketplaceImportParam() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const url = params.get('import');
+                if (!url) return;
+                const friendly = params.get('importName') || 'Marketplace layout';
+                /* Basic safety — only allow https URLs so we never trigger a data: or javascript: URL */
+                if (!/^https:\/\//i.test(url)) {
+                    showToast('Invalid import URL — ignoring', 'error');
+                    return;
+                }
+                /* Remove the query param so refresh doesn't re-import */
+                const clean = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, '', clean);
+                /* Wait for importRdm to have been evaluated (so window._rdmProcessRdmBytes is set).
+                   importRdm hoists on call — ensure it runs at least once by calling it into a dry path.
+                   Simpler: inline the same process logic by fetching then triggering import via a
+                   synthetic File and the file input. Cleanest is to call the exposed helper if present,
+                   else fall back to a fresh fetch + arrayBuffer into _processRdmBytes via importRdm. */
+                showToast(`Downloading ${friendly}...`, 'info');
+                const resp = await fetch(url, { credentials: 'omit', mode: 'cors' });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const buf = await resp.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised');
+                await _processRdmBytes(bytes, friendly + '.rdm');
+                showToast(`Imported "${friendly}" from Marketplace`, 'success');
+            } catch (e) {
+                showToast('Marketplace import failed: ' + (e.message || e), 'error');
+                console.error('Marketplace import:', e);
+            }
+        }
+        /* Wait for the full app shell to be ready before attempting a remote import */
+        if (typeof window !== 'undefined') {
+            window.addEventListener('load', function() {
+                setTimeout(_handleMarketplaceImportParam, 1200);
+            });
         }
 
         /* ── OTA Firmware Update ─────────────────────────────────── */
@@ -12021,6 +12121,65 @@ setInterval(function() {
   _updateUndoRedoButtons();
   _wstUpdate();
 }, 250);
+
+/* ── Bottom-sheet drag-to-resize/dismiss (#11) ─────────────────────────
+   On mobile, the right sidebar is a bottom-sheet. The user can:
+   - Tap outside to dismiss (existing overlay click already does that)
+   - Drag the top handle area up to expand to full height (sheet-full)
+   - Drag the top handle area down to dismiss the sheet
+   The handle is the sidebar's ::before pseudo-element — pointerdown anywhere in
+   the top 40px of the sidebar acts as handle. */
+(function setupSheetDrag() {
+  var sheet = document.querySelector('.sidebar-right');
+  if (!sheet) return;
+  var HANDLE_ZONE_PX = 40;
+  var dragging = false, startY = 0, startTransform = 0, startHeight = 0;
+  function onDown(e) {
+    var rect = sheet.getBoundingClientRect();
+    /* Only activate on the handle zone at the top */
+    if (e.clientY - rect.top > HANDLE_ZONE_PX) return;
+    /* Only when sheet is open */
+    if (!sheet.classList.contains('mobile-open')) return;
+    dragging = true;
+    startY = e.clientY;
+    startHeight = rect.height;
+    sheet.style.transition = 'none';
+    try { sheet.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    var dy = e.clientY - startY;
+    /* Negative dy = dragging up (expand); positive = dragging down (shrink/dismiss) */
+    var newHeight = Math.max(120, Math.min(window.innerHeight * 0.92, startHeight - dy));
+    sheet.style.height = newHeight + 'px';
+  }
+  function onUp(e) {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    var rect = sheet.getBoundingClientRect();
+    var fraction = rect.height / window.innerHeight;
+    /* Snap points: < 0.25 close, < 0.65 half, else full */
+    if (fraction < 0.25) {
+      sheet.style.height = '';
+      sheet.classList.remove('mobile-open', 'sheet-full');
+      var overlay = document.getElementById('mobileMenuOverlay');
+      if (overlay) overlay.classList.remove('active');
+    } else if (fraction < 0.65) {
+      sheet.style.height = '';
+      sheet.classList.remove('sheet-full');
+    } else {
+      sheet.style.height = '';
+      sheet.classList.add('sheet-full');
+    }
+  }
+  sheet.addEventListener('pointerdown', onDown);
+  sheet.addEventListener('pointermove', onMove);
+  sheet.addEventListener('pointerup', onUp);
+  sheet.addEventListener('pointercancel', onUp);
+  sheet.addEventListener('pointerleave', onUp);
+})();
 
 /* ── Zoom bar auto-hide (3s idle → fade) ────────────────────────────── */
 (function setupZoomBarAutoHide() {
