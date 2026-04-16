@@ -5989,7 +5989,10 @@
                 localStorage.setItem('rdm7_clipboard', JSON.stringify(clipboardWidget));
                 // Optional: Attempt System Clipboard integration
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(JSON.stringify(clipboardWidget));
+                    /* writeText returns a Promise that rejects async when the document isn't focused
+                       (common in iframes, Safari background tabs, and some Firefox perm states).
+                       The outer try/catch misses async rejections — silence them explicitly. */
+                    navigator.clipboard.writeText(JSON.stringify(clipboardWidget)).catch(() => {});
                 }
             } catch (e) { }
             updateStatus(`Copied ${clipboardWidget.type} to clipboard`);
