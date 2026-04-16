@@ -1,4 +1,12 @@
 node_modules/
 .vercel
 
-.vercel
+# Per-user Claude Code state (permissions, etc.) — keep local to each machine
+.claude/settings.local.json
+
+# Local-only working docs (questions/answers/facts/scripts) — not for production
+ANSWERS_*.md
+QUESTIONS_*.md
+PRODUCT_FACTS.md
+TOUR_SCRIPT.md
+VIDEO_SERIES_OUTLINE.md
