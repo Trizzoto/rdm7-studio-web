@@ -2053,6 +2053,13 @@
         #mobileActionBar { display: none; }
         #mobileActionBar button { -webkit-tap-highlight-color: transparent; }
 
+        /* ── Zoom bar auto-hide ──
+           After 3s of no interaction the zoom bar fades out. Any zoom/pan or touch
+           on the canvas brings it back. Desktop keeps it always-on. */
+        #mobileZoomBar { transition: opacity 0.35s ease, transform 0.35s ease; }
+        #mobileZoomBar.zoom-bar-faded { opacity: 0.25; transform: translateX(-50%) translateY(4px); }
+        #mobileZoomBar.zoom-bar-faded:hover { opacity: 1; transform: translateX(-50%) translateY(0); }
+
         /* ── Widget selection toolbar (mobile/touch only, shown when a widget is selected) ── */
         #widgetSelToolbar { display: none; }
         @media (max-width: 900px), (max-height: 500px) {
@@ -9948,6 +9955,25 @@
                 if (!layoutData) throw new Error('No layout found in .rdm file');
                 if (!layoutData.widgets || !Array.isArray(layoutData.widgets))
                     throw new Error('Invalid layout: missing widgets array');
+                /* ── Schema version check (#7) ───────────────────────────────
+                   Studio's current layout schema is v12 (matches dash firmware LAYOUT_SCHEMA_VERSION).
+                   Older layouts: Studio is forward-tolerant and reads missing fields as defaults — no
+                   action needed, just note it.
+                   Newer layouts: allow but warn — safer than refusing, since version bumps are often
+                   additive. Only block if the layout is grossly ahead (>= CURRENT + 5). */
+                const CURRENT_SCHEMA = 12;
+                const fileSchema = typeof layoutData.schema_version === 'number' ? layoutData.schema_version : null;
+                if (fileSchema === null) {
+                    showToast('Warning: this layout has no schema_version — treating as legacy format', 'info');
+                } else if (fileSchema < CURRENT_SCHEMA) {
+                    showToast(`Importing layout from schema v${fileSchema} (current is v${CURRENT_SCHEMA}) — defaults will fill missing fields`, 'info');
+                } else if (fileSchema > CURRENT_SCHEMA + 5) {
+                    throw new Error(`This layout was made in a much newer app version (schema v${fileSchema}, this app supports up to v${CURRENT_SCHEMA + 5}). Please update RDM Studio.`);
+                } else if (fileSchema > CURRENT_SCHEMA) {
+                    showToast(`This layout is from a newer schema (v${fileSchema} > v${CURRENT_SCHEMA}). Some new features may not display correctly — update RDM Studio for full support.`, 'info');
+                }
+                /* Normalise to current schema on save */
+                layoutData.schema_version = CURRENT_SCHEMA;
                 let uploadedImages = 0;
                 for (const img of images) {
                     try {
@@ -10755,12 +10781,50 @@
             if (type === 'desktop') {
                 icon.textContent = '\u{1F504}';
                 msg.innerHTML = `Desktop update available: <strong>v${info.latest_version}</strong> (current: v${info.current_version})`;
+            } else if (type === 'firmware_reminder') {
+                /* Soft reminder shown on launch (#9) — no install button action, just informational */
+                icon.textContent = '\u{1F527}';
+                msg.innerHTML = `Firmware <strong>v${info.latest_version}</strong> is available. Connect your dash to install.`;
             } else {
                 icon.textContent = '\u{1F527}';
                 const sizeMB = (info.file_size / 1048576).toFixed(1);
                 msg.innerHTML = `Firmware update: <strong>v${info.latest_version}</strong> (current: v${info.current_version}) \u2014 ${sizeMB} MB`;
             }
             banner.style.display = 'flex';
+
+            /* Cache the latest-known firmware version for the launch reminder (#9) */
+            if (type === 'firmware' && info.latest_version) {
+                try {
+                    localStorage.setItem('rdm7_cached_fw_version', info.latest_version);
+                    localStorage.setItem('rdm7_cached_fw_download_url', info.download_url || '');
+                    localStorage.setItem('rdm7_cached_fw_checked_at', String(Date.now()));
+                } catch (e) { }
+            }
+        }
+
+        /* Soft firmware-update reminder on launch (#9) — reads cache, no network call.
+           Runs once per session 3s after load. Only shows if a cached version exists,
+           the user hasn't skipped it, and the banner isn't already visible. */
+        function _checkCachedFirmwareReminder() {
+            try {
+                const latest = localStorage.getItem('rdm7_cached_fw_version');
+                if (!latest) return;
+                const skipped = localStorage.getItem('rdm7_skip_update_firmware');
+                if (skipped === latest) return;
+                const reminded = localStorage.getItem('rdm7_fw_reminder_shown');
+                if (reminded === latest) return; /* already reminded this session's version */
+                const banner = document.getElementById('updateBanner');
+                if (banner && banner.style.display === 'flex') return; /* another banner already up */
+                /* Stale cache guard: only remind if checked in last 30 days */
+                const checkedAt = parseInt(localStorage.getItem('rdm7_cached_fw_checked_at') || '0', 10);
+                if (!checkedAt || Date.now() - checkedAt > 30 * 86400 * 1000) return;
+                _showUpdateBanner('firmware_reminder', { latest_version: latest });
+                localStorage.setItem('rdm7_fw_reminder_shown', latest);
+            } catch (e) { /* localStorage unavailable — silently skip */ }
+        }
+        /* Fire shortly after load so we don't race with other boot UI */
+        if (typeof window !== 'undefined') {
+            setTimeout(_checkCachedFirmwareReminder, 3500);
         }
 
         async function _installUpdate() {
@@ -11497,7 +11561,7 @@
     <button class="wst-btn" data-nudge="right" aria-label="Move right">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
     </button>
-    <button class="wst-step active-10" id="wstStepBtn" aria-label="Step size" title="Tap to toggle nudge step">10px</button>
+    <button class="wst-step" id="wstStepBtn" aria-label="Step size" title="Tap to toggle nudge step">10px</button>
     <div class="wst-spacer"></div>
     <button class="wst-btn wst-icon" data-act="copy" aria-label="Copy">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -11746,7 +11810,13 @@ function _updateUndoRedoButtons() {
 }
 
 /* ── Widget Selection Toolbar (mobile) ──────────────────────────────── */
-var _wstStep = 10;          // current nudge/resize step (1 or 10). 10 is the default.
+var _wstStep = (function() {
+  try {
+    var saved = localStorage.getItem('rdm7_wst_step');
+    var n = parseInt(saved, 10);
+    return (n === 1 || n === 10) ? n : 10;
+  } catch (e) { return 10; }
+})();          // current nudge/resize step (1 or 10). 10 is the default. Persisted.
 var _wstLastIdx = -1;       // last rendered selection index (to know when to refresh readouts)
 
 function _wstGetWidget() {
@@ -11788,6 +11858,7 @@ function _wstResize(which) {
 
 function _wstToggleStep() {
   _wstStep = _wstStep === 1 ? 10 : 1;
+  try { localStorage.setItem('rdm7_wst_step', String(_wstStep)); } catch (e) { }
   var b = document.getElementById('wstStepBtn');
   if (b) {
     b.textContent = _wstStep + 'px';
@@ -11897,6 +11968,12 @@ function _wstSyncTestRow(w) {
 (function setupWidgetSelToolbar() {
   var tb = document.getElementById('widgetSelToolbar');
   if (!tb) return;
+  // Sync step button to persisted _wstStep value
+  var stepBtn0 = document.getElementById('wstStepBtn');
+  if (stepBtn0) {
+    stepBtn0.textContent = _wstStep + 'px';
+    stepBtn0.classList.toggle('active-10', _wstStep === 10);
+  }
   // Nudge buttons with hold-repeat
   tb.querySelectorAll('.wst-btn[data-nudge]').forEach(function(btn) {
     _wstBindRepeat(btn, function() { _wstNudge(btn.dataset.nudge); });
@@ -11944,6 +12021,30 @@ setInterval(function() {
   _updateUndoRedoButtons();
   _wstUpdate();
 }, 250);
+
+/* ── Zoom bar auto-hide (3s idle → fade) ────────────────────────────── */
+(function setupZoomBarAutoHide() {
+  var zb = document.getElementById('mobileZoomBar');
+  if (!zb) return;
+  var idleTimer = null;
+  var IDLE_MS = 3000;
+  function wake() {
+    zb.classList.remove('zoom-bar-faded');
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(function() { zb.classList.add('zoom-bar-faded'); }, IDLE_MS);
+  }
+  // Direct interactions on the zoom bar itself
+  zb.addEventListener('pointerdown', wake);
+  zb.addEventListener('mouseenter', wake);
+  // Canvas-area interactions also wake the bar so a user zooming/panning sees controls
+  var vp = document.getElementById('workspaceViewport');
+  if (vp) {
+    vp.addEventListener('pointerdown', wake);
+    vp.addEventListener('wheel', wake, { passive: true });
+  }
+  // Start in visible state, then let the idle timer kick in
+  wake();
+})();
 </script>
 
 </body>
