@@ -6898,8 +6898,8 @@
             html += `<div class="field"><label>Type</label><input type="text" value="${w.type}" disabled></div>`;
             html += `<div class="field"><label>ID</label><input type="text" value="${w.id}" onchange="updateWidgetField('id', this.value)" ${disabledAttr}></div>`;
             html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <div class="field"><label>X</label><input type="number" value="${w.x}" oninput="updateWidgetField('x', parseInt(this.value), true)" ${disabledAttr}></div>
-                <div class="field"><label>Y</label><input type="number" value="${w.y}" oninput="updateWidgetField('y', parseInt(this.value), true)" ${disabledAttr}></div>
+                <div class="field"><label>X</label><input type="number" value="${w.x}" onchange="updateWidgetField('x', parseInt(this.value), true)" oninput="updateWidgetFieldDeferred('x', parseInt(this.value))" ${disabledAttr}></div>
+                <div class="field"><label>Y</label><input type="number" value="${w.y}" onchange="updateWidgetField('y', parseInt(this.value), true)" oninput="updateWidgetFieldDeferred('y', parseInt(this.value))" ${disabledAttr}></div>
             </div>`;
             html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                 <div class="field"><label>W</label><input type="number" value="${w.w}" onchange="updateWidgetField('w', parseInt(this.value), true)" oninput="updateWidgetFieldDeferred('w', parseInt(this.value))" ${disabledAttr}></div>
