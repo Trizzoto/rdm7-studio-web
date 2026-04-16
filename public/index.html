@@ -2049,6 +2049,28 @@
           color: white; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.3);
           cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); font-size: 20px;
         }
+        /* ── Preview-embedded mode (Marketplace iframe) ──
+           Hides all editor chrome so only the canvas is visible. Used when Studio
+           is loaded in an iframe with ?mode=preview. */
+        html.preview-embedded header,
+        html.preview-embedded #webPreviewBanner,
+        html.preview-embedded .align-bar,
+        html.preview-embedded .sidebar,
+        html.preview-embedded .sidebar-right,
+        html.preview-embedded #mobileActionBar,
+        html.preview-embedded #mobileZoomBar,
+        html.preview-embedded #widgetSelToolbar,
+        html.preview-embedded #emptyStateHint,
+        html.preview-embedded footer { display: none !important; }
+        html.preview-embedded body { background: #000; }
+        html.preview-embedded .workspace {
+            display: flex !important; align-items: center; justify-content: center;
+            padding: 0 !important;
+        }
+        html.preview-embedded #workspaceViewport {
+            pointer-events: none; /* canvas is read-only in preview */
+        }
+
         /* ── Bottom action bar (hidden on desktop) ── */
         #mobileActionBar { display: none; }
         #mobileActionBar button { -webkit-tap-highlight-color: transparent; }
@@ -2219,36 +2241,35 @@
           #mobileActionBar button:active { background: rgba(255,255,255,0.06); }
           .sidebar-resize { display: none !important; }
           #sigList { display: none !important; }
-          /* ── Bottom-sheet sidebar (#11) ──
-             On mobile the right sidebar becomes a bottom-sheet: anchored to the bottom
-             of the viewport, partially visible when open, draggable to full-height or
-             dismissed. The action bar opens the sheet (peek→half); a drag handle at the
-             top lets the user resize to full or flick down to close. */
+          /* ── Sidebar on touch devices ──
+             Default for this breakpoint (≤900px): side-drawer from the right — the
+             tablet experience. Phones (≤600px) and landscape-short viewports get
+             the bottom-sheet variant via the override block further down. */
           .sidebar, .sidebar-right {
-            position: fixed !important; left: 0 !important; right: 0 !important;
-            top: auto !important; bottom: 0 !important;
-            width: auto !important; min-width: 0 !important; max-width: none !important;
-            height: 60vh !important; max-height: 85vh !important;
+            position: fixed !important;
+            top: 0 !important; right: 0 !important; bottom: 0 !important;
+            left: auto !important;
+            width: 320px !important; min-width: 320px !important; max-width: 85vw !important;
+            height: 100vh !important; max-height: 100vh !important;
             z-index: 9997;
-            transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important,
-                        height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
-            box-shadow: 0 -6px 28px rgba(0,0,0,0.45);
-            border-top: 1px solid var(--border);
-            border-top-left-radius: 16px;
-            border-top-right-radius: 16px;
+            transform: translateX(100%);
+            transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.45);
+            border-top: none;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
             overflow: hidden !important;
             display: flex; flex-direction: column;
           }
           .sidebar.mobile-open, .sidebar-right.mobile-open {
-            transform: translateY(0) !important;
+            transform: translateX(0) !important;
             z-index: 9999 !important;
           }
-          .sidebar-right.mobile-open.sheet-full { height: 85vh !important; }
-          /* Drag handle at the top of the sheet */
+          .sidebar-right.mobile-open.sheet-full { /* no-op in drawer mode */ }
+          /* Drag handle (hidden in drawer mode — only meaningful for bottom sheet) */
           .sidebar-right::before, .sidebar::before {
             content: "";
-            display: block;
+            display: none;
             flex-shrink: 0;
             width: 44px;
             height: 4px;
@@ -2294,6 +2315,31 @@
           }
           .align-bar { display: none !important; }
           footer { display: none !important; }
+        }
+
+        /* ── Phone-only bottom-sheet override ──
+           On phones (≤600px wide) and short landscape (≤500px tall) the side drawer
+           would eat too much horizontal space, so we switch to a bottom-sheet.
+           Tablet (601–900px wide, taller than 500px) keeps the side drawer. */
+        @media (max-width: 600px), (max-height: 500px) {
+            .sidebar, .sidebar-right {
+                top: auto !important;
+                left: 0 !important; right: 0 !important; bottom: 0 !important;
+                width: auto !important; min-width: 0 !important; max-width: none !important;
+                height: 60vh !important; max-height: 85vh !important;
+                transform: translateY(100%) !important;
+                transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important,
+                            height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+                box-shadow: 0 -6px 28px rgba(0,0,0,0.45) !important;
+                border-top: 1px solid var(--border) !important;
+                border-top-left-radius: 16px !important;
+                border-top-right-radius: 16px !important;
+            }
+            .sidebar.mobile-open, .sidebar-right.mobile-open {
+                transform: translateY(0) !important;
+            }
+            .sidebar-right.mobile-open.sheet-full { height: 85vh !important; }
+            .sidebar-right::before, .sidebar::before { display: block !important; }
         }
 
         /* ── Portrait phone (≤600px): burger menu ── */
@@ -10119,7 +10165,14 @@
             try {
                 const params = new URLSearchParams(window.location.search);
                 const url = params.get('import');
+                const isPreview = params.get('mode') === 'preview';
+                const wantsAutoSim = params.get('autoSim') === '1';
+
+                /* Preview mode applies independent of import — hide editor chrome for iframes */
+                if (isPreview) _enablePreviewMode();
+
                 if (!url) return;
+
                 const friendly = params.get('importName') || 'Marketplace layout';
                 /* Basic safety — only allow https URLs so we never trigger a data: or javascript: URL */
                 if (!/^https:\/\//i.test(url)) {
@@ -10129,11 +10182,7 @@
                 /* Remove the query param so refresh doesn't re-import */
                 const clean = window.location.pathname + window.location.hash;
                 window.history.replaceState({}, '', clean);
-                /* Wait for importRdm to have been evaluated (so window._rdmProcessRdmBytes is set).
-                   importRdm hoists on call — ensure it runs at least once by calling it into a dry path.
-                   Simpler: inline the same process logic by fetching then triggering import via a
-                   synthetic File and the file input. Cleanest is to call the exposed helper if present,
-                   else fall back to a fresh fetch + arrayBuffer into _processRdmBytes via importRdm. */
+
                 showToast(`Downloading ${friendly}...`, 'info');
                 const resp = await fetch(url, { credentials: 'omit', mode: 'cors' });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -10141,12 +10190,37 @@
                 const bytes = new Uint8Array(buf);
                 if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised');
                 await _processRdmBytes(bytes, friendly + '.rdm');
-                showToast(`Imported "${friendly}" from Marketplace`, 'success');
+                if (!isPreview) {
+                    showToast(`Imported "${friendly}" from Marketplace`, 'success');
+                }
+
+                /* After import, optionally auto-start simulation for live preview */
+                if (wantsAutoSim) {
+                    setTimeout(function() {
+                        try { if (typeof _simActive !== 'undefined' && !_simActive && typeof toggleSimulation === 'function') toggleSimulation(); } catch (e) {}
+                        /* Ensure zoom is fit so the whole dashboard is visible */
+                        try { if (typeof zoomToFit === 'function') zoomToFit(); } catch (e) {}
+                    }, 800);
+                }
             } catch (e) {
                 showToast('Marketplace import failed: ' + (e.message || e), 'error');
                 console.error('Marketplace import:', e);
             }
         }
+
+        /* Preview mode — Studio is embedded in a Marketplace iframe as a live
+           layout preview. Hide editor chrome (header toolbars, sidebars, action
+           bar, zoom bar) so only the canvas is visible. Also relax pointer-
+           events so the canvas doesn't accept drags. */
+        function _enablePreviewMode() {
+            try {
+                document.documentElement.classList.add('preview-embedded');
+                /* Suppress the web-preview banner inside an iframe preview */
+                var b = document.getElementById('webPreviewBanner');
+                if (b) b.style.display = 'none';
+            } catch (e) { /* best effort */ }
+        }
+
         /* Wait for the full app shell to be ready before attempting a remote import */
         if (typeof window !== 'undefined') {
             window.addEventListener('load', function() {
@@ -12181,28 +12255,36 @@ setInterval(function() {
   sheet.addEventListener('pointerleave', onUp);
 })();
 
-/* ── Zoom bar auto-hide (3s idle → fade) ────────────────────────────── */
+/* ── Zoom bar auto-hide ────────────────────────────
+   Default: faded. Unfades on hover, pointer-down on the bar, or on a canvas
+   interaction (zoom/pan). Re-fades after IDLE_MS of inactivity. */
 (function setupZoomBarAutoHide() {
   var zb = document.getElementById('mobileZoomBar');
   if (!zb) return;
   var idleTimer = null;
-  var IDLE_MS = 3000;
+  var IDLE_MS = 1500;
   function wake() {
     zb.classList.remove('zoom-bar-faded');
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(function() { zb.classList.add('zoom-bar-faded'); }, IDLE_MS);
   }
+  function sleep() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = null;
+    zb.classList.add('zoom-bar-faded');
+  }
   // Direct interactions on the zoom bar itself
   zb.addEventListener('pointerdown', wake);
   zb.addEventListener('mouseenter', wake);
+  zb.addEventListener('mouseleave', sleep);
   // Canvas-area interactions also wake the bar so a user zooming/panning sees controls
   var vp = document.getElementById('workspaceViewport');
   if (vp) {
     vp.addEventListener('pointerdown', wake);
     vp.addEventListener('wheel', wake, { passive: true });
   }
-  // Start in visible state, then let the idle timer kick in
-  wake();
+  // Start in faded state — user explicitly wanted this
+  sleep();
 })();
 </script>
 
