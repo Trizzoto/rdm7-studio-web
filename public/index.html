@@ -2072,50 +2072,17 @@
         }
 
         /* ── Locked preview mode (paid Marketplace layouts) ──
-           Shows the layout running with simulation but blocks all
-           editing, saving, exporting, and makes extraction difficult.
-           A watermark overlay links back to the Marketplace listing. */
-        html.preview-locked #webPreviewBanner,
-        html.preview-locked .align-bar,
+           Shows the layout with WASM rendering + simulation but blocks
+           editing, saving, exporting. JS hides specific UI elements. */
         html.preview-locked .sidebar,
         html.preview-locked .sidebar-right,
-        html.preview-locked #mobileActionBar,
-        html.preview-locked #mobileZoomBar,
-        html.preview-locked #widgetSelToolbar,
+        html.preview-locked .align-bar,
+        html.preview-locked #webPreviewBanner,
         html.preview-locked #emptyStateHint,
         html.preview-locked #contextMenu,
+        html.preview-locked #widgetSelToolbar,
         html.preview-locked footer { display: none !important; }
-        /* Header: keep visible but hide everything except Sim button */
-        html.preview-locked header {
-            background: #0a0a0c !important; border-bottom: 1px solid #222 !important;
-            justify-content: center !important;
-        }
-        html.preview-locked header > *,
-        html.preview-locked .top-controls,
-        html.preview-locked .header-divider,
-        html.preview-locked #layoutSelect,
-        html.preview-locked .layout-menu-wrap,
-        html.preview-locked #deviceControls,
-        html.preview-locked #saveBtn,
-        html.preview-locked #saveAsBtn,
-        html.preview-locked #connModeLabel,
-        html.preview-locked #connectionMode,
-        html.preview-locked #scanDevicesBtn,
-        html.preview-locked #simSettingsBtn { display: none !important; }
-        html.preview-locked #pillSimulate {
-            display: inline-flex !important;
-            font-size: 12px !important; padding: 6px 18px !important;
-        }
-        html.preview-locked body { background: #0a0a0c; }
-        html.preview-locked .workspace {
-            display: flex !important; align-items: center; justify-content: center;
-            padding: 0 !important;
-        }
-        html.preview-locked #workspaceViewport {
-            pointer-events: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+        html.preview-locked #interactionLayer { pointer-events: none; user-select: none; }
         #lockedPreviewOverlay {
             display: none;
             position: fixed; bottom: 0; left: 0; right: 0;
@@ -10322,13 +10289,31 @@
         }
 
         /* Locked preview mode — Marketplace paid layout, view-only with simulation.
-           Hides all editing UI, blocks save/export, disables keyboard shortcuts,
-           prevents localStorage persistence, and shows a "Buy" overlay. */
+           Hides editing UI via JS (keeps workspace/canvas/WASM intact), blocks
+           save/export, disables keyboard shortcuts, shows "Buy" overlay. */
         function _enableLockedPreviewMode(layoutId) {
             try {
                 document.documentElement.classList.add('preview-locked');
                 var b = document.getElementById('webPreviewBanner');
                 if (b) b.style.display = 'none';
+
+                /* Hide specific header elements but keep Sim button + zoom visible */
+                var hideIds = [
+                    'layoutSelect', 'layoutMenuWrap', 'splashSelect', 'splashFadeLabel',
+                    'saveBtn', 'saveAsBtn', 'connectionMode', 'connModeLabel',
+                    'scanDevicesBtn', 'simSettingsBtn', 'ecuContextSelect'
+                ];
+                hideIds.forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+                /* Hide top-controls (undo/redo/bezel toggles), header-dividers, and device controls */
+                document.querySelectorAll('.top-controls, .header-divider, #deviceControls').forEach(function(el) {
+                    el.style.display = 'none';
+                });
+                /* Hide the logo/title area but keep header bar for Sim button */
+                var logoLink = document.querySelector('header .logo-link, header a[href="/"]');
+                if (logoLink) logoLink.style.display = 'none';
 
                 /* Set the Buy button link to the specific layout */
                 if (layoutId) {
