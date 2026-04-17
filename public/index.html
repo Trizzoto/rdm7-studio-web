@@ -2075,7 +2075,6 @@
            Shows the layout running with simulation but blocks all
            editing, saving, exporting, and makes extraction difficult.
            A watermark overlay links back to the Marketplace listing. */
-        html.preview-locked header,
         html.preview-locked #webPreviewBanner,
         html.preview-locked .align-bar,
         html.preview-locked .sidebar,
@@ -2086,6 +2085,27 @@
         html.preview-locked #emptyStateHint,
         html.preview-locked #contextMenu,
         html.preview-locked footer { display: none !important; }
+        /* Header: keep visible but hide everything except Sim button */
+        html.preview-locked header {
+            background: #0a0a0c !important; border-bottom: 1px solid #222 !important;
+            justify-content: center !important;
+        }
+        html.preview-locked header > *,
+        html.preview-locked .top-controls,
+        html.preview-locked .header-divider,
+        html.preview-locked #layoutSelect,
+        html.preview-locked .layout-menu-wrap,
+        html.preview-locked #deviceControls,
+        html.preview-locked #saveBtn,
+        html.preview-locked #saveAsBtn,
+        html.preview-locked #connModeLabel,
+        html.preview-locked #connectionMode,
+        html.preview-locked #scanDevicesBtn,
+        html.preview-locked #simSettingsBtn { display: none !important; }
+        html.preview-locked #pillSimulate {
+            display: inline-flex !important;
+            font-size: 12px !important; padding: 6px 18px !important;
+        }
         html.preview-locked body { background: #0a0a0c; }
         html.preview-locked .workspace {
             display: flex !important; align-items: center; justify-content: center;
@@ -6661,7 +6681,13 @@
         });
 
         window.onkeydown = (e) => {
-            if (_lockedPreviewMode) { e.preventDefault(); return; }
+            if (_lockedPreviewMode) {
+                /* Block save/export/copy/paste/undo/redo shortcuts but allow normal keys */
+                if ((e.ctrlKey || e.metaKey) || e.key === 'Delete' || e.key === 'Backspace') {
+                    e.preventDefault(); return;
+                }
+                return;
+            }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             if (e.ctrlKey || e.metaKey) {
