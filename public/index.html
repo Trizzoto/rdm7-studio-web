@@ -6755,6 +6755,7 @@
 
         let previewTimer = null;
         function buildFirmwarePayload() {
+            if (_lockedPreviewMode) { return { name: 'locked', widgets: [], signals: [] }; }
             const payload = JSON.parse(JSON.stringify(currentLayout));
             /* Tag layout with target screen dimensions */
             payload.screen_w = CANVAS_W;
@@ -9146,6 +9147,7 @@
         }
 
         function saveAsNewLayout() {
+            if (_lockedPreviewMode) { showToast('Saving disabled in preview mode', 'error'); return; }
             const isSplash = currentScreenMode === 'splash';
             const title = isSplash ? 'Save Splash As' : 'Save Layout As';
             _showPromptOverlay(title, '', async (safeName) => {
@@ -10179,6 +10181,7 @@
         if (typeof window !== 'undefined') window._rdmProcessRdmBytes = _processRdmBytes;
 
         async function importRdm() {
+            if (_lockedPreviewMode) { showToast('Import disabled in preview mode', 'error'); return; }
             if (RDM.isTauri()) {
                 const path = await RDM.openFileDialog([{ name: 'RDM Bundle', extensions: ['rdm'] }]);
                 if (!path) return;
