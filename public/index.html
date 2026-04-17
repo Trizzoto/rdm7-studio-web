@@ -2073,7 +2073,7 @@
 
         /* ── Locked preview mode (paid Marketplace layouts) ──
            Shows the layout with WASM rendering + simulation but blocks
-           editing, saving, exporting. JS hides specific UI elements. */
+           editing, saving, exporting. JS hides specific header elements. */
         html.preview-locked .sidebar,
         html.preview-locked .sidebar-right,
         html.preview-locked .align-bar,
@@ -2081,6 +2081,10 @@
         html.preview-locked #emptyStateHint,
         html.preview-locked #contextMenu,
         html.preview-locked #widgetSelToolbar,
+        html.preview-locked #mobileActionBar,
+        html.preview-locked .mobile-sidebar-fab,
+        html.preview-locked .mobile-menu-overlay,
+        html.preview-locked .mobile-menu-panel,
         html.preview-locked footer { display: none !important; }
         html.preview-locked #interactionLayer { pointer-events: none; user-select: none; }
         #lockedPreviewOverlay {
@@ -6748,7 +6752,6 @@
 
         let previewTimer = null;
         function buildFirmwarePayload() {
-            if (_lockedPreviewMode) { return { name: 'locked', widgets: [], signals: [] }; }
             const payload = JSON.parse(JSON.stringify(currentLayout));
             /* Tag layout with target screen dimensions */
             payload.screen_w = CANVAS_W;
@@ -9587,6 +9590,7 @@
         }
 
         function screenshotCanvas() {
+            if (_lockedPreviewMode) { showToast('Screenshot disabled in preview mode', 'error'); return; }
             const canvas = document.getElementById('canvas');
             if (!canvas) { showToast('Canvas not found', 'error'); return; }
             canvas.toBlob(function(blob) {
@@ -10297,11 +10301,12 @@
                 var b = document.getElementById('webPreviewBanner');
                 if (b) b.style.display = 'none';
 
-                /* Hide specific header elements but keep Sim button + zoom visible */
+                /* Hide specific header elements — keep only Sim button and help/reset */
                 var hideIds = [
                     'layoutSelect', 'layoutMenuWrap', 'splashSelect', 'splashFadeLabel',
                     'saveBtn', 'saveAsBtn', 'connectionMode', 'connModeLabel',
-                    'scanDevicesBtn', 'simSettingsBtn', 'ecuContextSelect'
+                    'scanDevicesBtn', 'simSettingsBtn', 'ecuContextSelect',
+                    'screenSizeSelect', 'screenModeSelect'
                 ];
                 hideIds.forEach(function(id) {
                     var el = document.getElementById(id);
@@ -10311,9 +10316,10 @@
                 document.querySelectorAll('.top-controls, .header-divider, #deviceControls').forEach(function(el) {
                     el.style.display = 'none';
                 });
-                /* Hide the logo/title area but keep header bar for Sim button */
-                var logoLink = document.querySelector('header .logo-link, header a[href="/"]');
-                if (logoLink) logoLink.style.display = 'none';
+                /* Hide the logo/title area but keep header bar for remaining buttons */
+                document.querySelectorAll('header .logo-link, header a[href="/"], header .header-title').forEach(function(el) {
+                    el.style.display = 'none';
+                });
 
                 /* Set the Buy button link to the specific layout */
                 if (layoutId) {
@@ -10324,7 +10330,7 @@
                 /* Block right-click context menu */
                 document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
-                /* Prevent drag events (stops drag-to-desktop file extraction) */
+                /* Prevent drag events */
                 document.addEventListener('dragstart', function(e) { e.preventDefault(); });
 
                 /* Periodically wipe localStorage to prevent draft persistence */
