@@ -2071,6 +2071,55 @@
             pointer-events: none; /* canvas is read-only in preview */
         }
 
+        /* ── Locked preview mode (paid Marketplace layouts) ──
+           Shows the layout running with simulation but blocks all
+           editing, saving, exporting, and makes extraction difficult.
+           A watermark overlay links back to the Marketplace listing. */
+        html.preview-locked header,
+        html.preview-locked #webPreviewBanner,
+        html.preview-locked .align-bar,
+        html.preview-locked .sidebar,
+        html.preview-locked .sidebar-right,
+        html.preview-locked #mobileActionBar,
+        html.preview-locked #mobileZoomBar,
+        html.preview-locked #widgetSelToolbar,
+        html.preview-locked #emptyStateHint,
+        html.preview-locked #contextMenu,
+        html.preview-locked footer { display: none !important; }
+        html.preview-locked body { background: #0a0a0c; }
+        html.preview-locked .workspace {
+            display: flex !important; align-items: center; justify-content: center;
+            padding: 0 !important;
+        }
+        html.preview-locked #workspaceViewport {
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #lockedPreviewOverlay {
+            display: none;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            z-index: 9999; padding: 16px 24px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.85));
+            pointer-events: none;
+        }
+        #lockedPreviewOverlay .locked-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            max-width: 900px; margin: 0 auto;
+            pointer-events: auto;
+        }
+        #lockedPreviewOverlay .locked-label {
+            color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 500;
+        }
+        #lockedPreviewOverlay .locked-btn {
+            background: #CC0000; color: #fff; border: none; cursor: pointer;
+            padding: 10px 24px; border-radius: 6px; font-weight: 700;
+            font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+            text-decoration: none; transition: background 0.2s;
+        }
+        #lockedPreviewOverlay .locked-btn:hover { background: #A30000; }
+        html.preview-locked #lockedPreviewOverlay { display: block; }
+
         /* ── Bottom action bar (hidden on desktop) ── */
         #mobileActionBar { display: none; }
         #mobileActionBar button { -webkit-tap-highlight-color: transparent; }
@@ -3591,6 +3640,7 @@
         let ORIGIN_Y = 240; // Center Y
 
         let currentLayout = { name: "default", widgets: [], signals: [] };
+        let _lockedPreviewMode = false;
         let selectedIndex = -1;
         let selectedIndices = new Set();
         let _dragStartPositions = {};
@@ -6611,6 +6661,7 @@
         });
 
         window.onkeydown = (e) => {
+            if (_lockedPreviewMode) { e.preventDefault(); return; }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             if (e.ctrlKey || e.metaKey) {
@@ -9047,6 +9098,7 @@
         }
 
         async function saveActiveLayout() {
+            if (_lockedPreviewMode) { showToast('Saving disabled in preview mode', 'error'); return; }
             /* Prune unused signals from in-memory layout before saving */
             if (currentLayout.signals && currentLayout.widgets) {
                 const used = new Set();
@@ -9590,6 +9642,7 @@
         }
 
         async function downloadJson() {
+            if (_lockedPreviewMode) { showToast('Export disabled in preview mode', 'error'); return; }
             const payload = buildFirmwarePayload();
             const jsonStr = JSON.stringify(payload, null, 2);
             const defaultName = `${currentLayout.name || 'layout'}.json`;
@@ -9868,6 +9921,7 @@
         }
 
         async function exportRdm() {
+            if (_lockedPreviewMode) { showToast('Export disabled in preview mode', 'error'); return; }
             const name = currentLayout.name || 'layout';
             updateStatus('Building .rdm bundle...');
 
@@ -10166,10 +10220,19 @@
                 const params = new URLSearchParams(window.location.search);
                 const url = params.get('import');
                 const isPreview = params.get('mode') === 'preview';
-                const wantsAutoSim = params.get('autoSim') === '1';
+                const isLocked = params.get('locked') === '1';
+                const wantsAutoSim = params.get('autoSim') === '1' || isLocked;
+                const layoutId = params.get('layoutId') || '';
 
+                /* Locked preview mode — paid Marketplace layout, view-only */
+                if (isLocked) {
+                    _lockedPreviewMode = true;
+                    _enableLockedPreviewMode(layoutId);
+                }
                 /* Preview mode applies independent of import — hide editor chrome for iframes */
-                if (isPreview) _enablePreviewMode();
+                else if (isPreview) {
+                    _enablePreviewMode();
+                }
 
                 if (!url) return;
 
@@ -10179,22 +10242,30 @@
                     showToast('Invalid import URL — ignoring', 'error');
                     return;
                 }
-                /* Remove the query param so refresh doesn't re-import */
-                const clean = window.location.pathname + window.location.hash;
-                window.history.replaceState({}, '', clean);
+                /* Remove the query param so refresh doesn't re-import
+                   (keep params for locked mode so refresh re-triggers locked state) */
+                if (!_lockedPreviewMode) {
+                    const clean = window.location.pathname + window.location.hash;
+                    window.history.replaceState({}, '', clean);
+                }
 
-                showToast(`Downloading ${friendly}...`, 'info');
+                if (!_lockedPreviewMode) showToast(`Downloading ${friendly}...`, 'info');
                 const resp = await fetch(url, { credentials: 'omit', mode: 'cors' });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const buf = await resp.arrayBuffer();
                 const bytes = new Uint8Array(buf);
                 if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised');
                 await _processRdmBytes(bytes, friendly + '.rdm');
-                if (!isPreview) {
+                if (!isPreview && !_lockedPreviewMode) {
                     showToast(`Imported "${friendly}" from Marketplace`, 'success');
                 }
 
-                /* After import, optionally auto-start simulation for live preview */
+                /* In locked mode, wipe localStorage so layout isn't persisted */
+                if (_lockedPreviewMode) {
+                    try { localStorage.removeItem('rdm7_draft'); } catch (e) {}
+                }
+
+                /* After import, auto-start simulation for live preview */
                 if (wantsAutoSim) {
                     setTimeout(function() {
                         try { if (typeof _simActive !== 'undefined' && !_simActive && typeof toggleSimulation === 'function') toggleSimulation(); } catch (e) {}
@@ -10218,6 +10289,34 @@
                 /* Suppress the web-preview banner inside an iframe preview */
                 var b = document.getElementById('webPreviewBanner');
                 if (b) b.style.display = 'none';
+            } catch (e) { /* best effort */ }
+        }
+
+        /* Locked preview mode — Marketplace paid layout, view-only with simulation.
+           Hides all editing UI, blocks save/export, disables keyboard shortcuts,
+           prevents localStorage persistence, and shows a "Buy" overlay. */
+        function _enableLockedPreviewMode(layoutId) {
+            try {
+                document.documentElement.classList.add('preview-locked');
+                var b = document.getElementById('webPreviewBanner');
+                if (b) b.style.display = 'none';
+
+                /* Set the Buy button link to the specific layout */
+                if (layoutId) {
+                    var btn = document.getElementById('lockedBuyBtn');
+                    if (btn) btn.href = 'https://marketplace.realtimedatamonitoring.com.au/layout-detail/' + layoutId;
+                }
+
+                /* Block right-click context menu */
+                document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+                /* Prevent drag events (stops drag-to-desktop file extraction) */
+                document.addEventListener('dragstart', function(e) { e.preventDefault(); });
+
+                /* Periodically wipe localStorage to prevent draft persistence */
+                setInterval(function() {
+                    try { localStorage.removeItem('rdm7_draft'); } catch (e) {}
+                }, 2000);
             } catch (e) { /* best effort */ }
         }
 
@@ -12287,6 +12386,16 @@ setInterval(function() {
   sleep();
 })();
 </script>
+
+<!-- Locked preview overlay (hidden by default, shown via CSS when html.preview-locked is set) -->
+<div id="lockedPreviewOverlay">
+  <div class="locked-inner">
+    <span class="locked-label">Preview only — editing disabled</span>
+    <a id="lockedBuyBtn" class="locked-btn" href="https://marketplace.realtimedatamonitoring.com.au" target="_blank" rel="noopener noreferrer">
+      Buy on Marketplace
+    </a>
+  </div>
+</div>
 
 </body>
 
