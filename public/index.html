@@ -5153,12 +5153,45 @@
                     { name: "tick_label_font", label: "Tick Label Font", type: "font", def: "", cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "tick_label_color", label: "Tick Label Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "needle_image_name", label: "Needle Image", type: "image_picker", def: "", cat: "appearance" },
-                    { name: "needle_pivot_x", label: "Needle Pivot X", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance" },
-                    { name: "needle_pivot_y", label: "Needle Pivot Y", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance" },
-                    { name: "needle_angle_offset", label: "Needle Angle Offset", type: "stepper", min: -180, max: 180, def: 0, cat: "appearance" },
+                    { name: "needle_pivot_x", label: "Needle Pivot X", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance", enabledBy: "needle_image_name" },
+                    { name: "needle_pivot_y", label: "Needle Pivot Y", type: "stepper", min: -400, max: 400, def: 0, cat: "appearance", enabledBy: "needle_image_name" },
+                    { name: "needle_angle_offset", label: "Needle Angle Offset", type: "stepper", min: -180, max: 180, def: 0, cat: "appearance", enabledBy: "needle_image_name" },
                     { name: "needle_width", label: "Needle Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance" },
                     { name: "needle_color", label: "Needle Color", type: "color", def: 0xFFFFFF, cat: "appearance" },
                     { name: "needle_r_mod", label: "Needle Length Trim", type: "stepper", min: -100, max: 100, def: -10, cat: "appearance" },
+                    { name: "needle_tip_style", label: "Needle Tip Style", type: "select", def: 0, cat: "appearance",
+                      options: [ {v:0, l:"Flat"}, {v:1, l:"Rounded"}, {v:2, l:"Lance"}, {v:3, l:"Dagger"}, {v:4, l:"Spade"}, {v:5, l:"Diamond"} ] },
+                    /* Tip-tuning knobs. Stored value 0 = "use the built-in
+                     * default for the current style". `autoFn` returns the
+                     * resolved default the firmware would pick — mirrors the
+                     * same defaults used in widget_meter.c's DRAW_PART hook
+                     * so the inspector can show the effective number even
+                     * when the user hasn't entered an explicit override. */
+                    { name: "needle_tip_base_w", label: "Tip Base Width", type: "stepper-auto", min: 0, max: 30, def: 0, cat: "appearance",
+                      autoFn: function(cfg) {
+                          var nw = cfg.needle_width || 4;
+                          switch (cfg.needle_tip_style) {
+                              case 2: return (nw >> 1) + 1;  // Lance
+                              case 3: return (nw >> 1) + 2;  // Dagger
+                              case 4: return (nw >> 1) + 2;  // Spade
+                              case 5: return (nw >> 1) + 3;  // Diamond
+                              default: return 0;
+                          }
+                      } },
+                    { name: "needle_tip_point_w", label: "Tip Point Width", type: "stepper-auto", min: 0, max: 20, def: 0, cat: "appearance",
+                      autoFn: function(cfg) {
+                          return cfg.needle_tip_style === 4 ? 1 : 0;  // only Spade has a default cap
+                      } },
+                    { name: "needle_tip_taper", label: "Tip Taper %", type: "stepper-auto", min: 0, max: 100, def: 0, cat: "appearance",
+                      autoFn: function(cfg) {
+                          switch (cfg.needle_tip_style) {
+                              case 2: return 90;   // Lance: shaft ends here
+                              case 3: return 100;  // Dagger: tapers across full length
+                              case 4: return 97;   // Spade: cap position
+                              case 5: return 50;   // Diamond: widest point
+                              default: return 0;
+                          }
+                      } },
                     { name: "needle_ball_size", label: "Needle Ball Size", type: "stepper", min: 0, max: 40, def: 10, cat: "appearance" },
                     { name: "needle_ball_color", label: "Needle Ball Color", type: "color", def: 0xFFFFFF, cat: "appearance" }
                 ]
@@ -6985,6 +7018,39 @@
                         oninput="(function(ni){var v=parseInt(ni.value); if(isNaN(v))return; var sl=ni.previousElementSibling; if(v>parseInt(sl.max))sl.max=v; if(v<parseInt(sl.min))sl.min=v; sl.value=v; updateWidgetConfigField('${f.name}',v,true);})(this)" ${disabledAttr}>
                     <button type="button" class="btn-secondary" style="width:26px; height:26px; padding:0; display:flex; align-items:center; justify-content:center; font-size:11px;" ${disabledAttr}
                         onclick="(function(btn){var ni=btn.previousElementSibling; var sl=ni.previousElementSibling; var v=parseInt(sl.value)+${f.step||1}; sl.value=v; ni.value=v; updateWidgetConfigField('${f.name}',v,true);})(this)">&gt;</button>
+                </div>`;
+            } else if (f.type === 'stepper-auto') {
+                /* Stepper variant where stored value 0 means "use the style's
+                 * built-in default". f.autoFn(widgetConfig) returns the
+                 * effective value that the firmware would pick for 0; we
+                 * show that number in the input (grayed) with an AUTO chip,
+                 * and expose a reset (↺) button that writes 0 back. */
+                const sMin = f.min != null ? f.min : 0;
+                const sMax = f.max != null ? f.max : 100;
+                const wObj = currentLayout.widgets[selectedIndex];
+                const cfg = (wObj && wObj.config) ? wObj.config : {};
+                const autoVal = (typeof f.autoFn === 'function') ? (f.autoFn(cfg) || 0) : 0;
+                const storedVal = (typeof val === 'number') ? val : parseInt(val) || 0;
+                const isAuto = (storedVal === 0);
+                const shown = isAuto ? autoVal : storedVal;
+                const numberColor = isAuto ? 'var(--text-muted)' : 'var(--text)';
+                const rangeOpa    = isAuto ? 0.55 : 1;
+                const resetDim    = isAuto ? 'opacity:0.3; pointer-events:none;' : '';
+                const autoChip = isAuto
+                    ? `<span style="font-size:9px; font-family:'JetBrains Mono',monospace; font-weight:700; letter-spacing:0.5px; color:var(--text-muted); background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:1px 5px; margin-right:2px;" title="Using style default — edit or use the +/− to override">AUTO</span>`
+                    : '';
+                html += `<div style="display:flex; gap:4px; align-items:center;">
+                    ${autoChip}
+                    <button type="button" class="btn-secondary" style="width:26px; height:26px; padding:0; display:flex; align-items:center; justify-content:center; font-size:11px;" ${disabledAttr}
+                        onclick="(function(btn){var sl=btn.nextElementSibling; var ni=sl.nextElementSibling; var v=parseInt(sl.value)-${f.step||1}; if(v<${sMin})v=${sMin}; if(v===0)v=${sMin===0?1:sMin}; sl.value=v; ni.value=v; updateWidgetConfigField('${f.name}',v,true);})(this)">&lt;</button>
+                    <input type="range" min="${sMin}" max="${sMax}" value="${Math.min(shown, sMax)}" style="flex:1; opacity:${rangeOpa};"
+                        oninput="this.nextElementSibling.value=this.value; updateWidgetConfigField('${f.name}', parseInt(this.value), true)" ${disabledAttr}>
+                    <input type="number" value="${shown}" style="width:56px; text-align:center; font-size:11px; font-family:'JetBrains Mono',monospace; background:var(--bg); border:1px solid var(--border); color:${numberColor}; border-radius:var(--radius-sm); padding:2px 4px;"
+                        oninput="(function(ni){var v=parseInt(ni.value); if(isNaN(v))return; var sl=ni.previousElementSibling; if(v>parseInt(sl.max))sl.max=v; if(v<parseInt(sl.min))sl.min=v; sl.value=v; updateWidgetConfigField('${f.name}',v,true);})(this)" ${disabledAttr}>
+                    <button type="button" class="btn-secondary" style="width:26px; height:26px; padding:0; display:flex; align-items:center; justify-content:center; font-size:11px;" ${disabledAttr}
+                        onclick="(function(btn){var ni=btn.previousElementSibling; var sl=ni.previousElementSibling; var v=parseInt(sl.value)+${f.step||1}; if(v>${sMax})v=${sMax}; sl.value=v; ni.value=v; updateWidgetConfigField('${f.name}',v,true);})(this)">&gt;</button>
+                    <button type="button" class="btn-secondary" title="Reset to style default (AUTO)" style="width:26px; height:26px; padding:0; display:flex; align-items:center; justify-content:center; font-size:14px; ${resetDim}" ${disabledAttr}
+                        onclick="updateWidgetConfigField('${f.name}',0,true)">&#8634;</button>
                 </div>`;
             } else if (f.type === 'textarea') {
                 const escaped = String(val || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
