@@ -544,7 +544,7 @@
 
         /* Mobile/touch: hide the resize-handle dots entirely — the selection toolbar handles W/H.
            Selection is communicated by the widget-box border only. */
-        @media (pointer: coarse), (max-width: 900px), (max-height: 500px) {
+        @media (pointer: coarse), (max-width: 820px), (max-height: 500px) {
             .resize-handle { display: none !important; }
         }
 
@@ -929,7 +929,7 @@
             background: #2d2d2d;
         }
         /* On mobile the undo/redo pair sits next to the toggles — keep them tappable */
-        @media (max-width: 900px) {
+        @media (max-width: 820px) {
             .header-icon-btn { width: 32px; height: 32px; }
             .header-icon-btn svg { width: 18px; height: 18px; }
         }
@@ -1178,7 +1178,7 @@
         }
 
         /* Mobile: lift toasts above the bottom action bar + zoom bar, allow wrapping */
-        @media (max-width: 900px) {
+        @media (max-width: 820px) {
             .toast-container {
                 bottom: calc(130px + env(safe-area-inset-bottom));
             }
@@ -1214,7 +1214,7 @@
             box-shadow: var(--shadow-md);
             display: none;
         }
-        @media (max-width: 900px) {
+        @media (max-width: 820px) {
             .dl-progress-overlay {
                 bottom: calc(170px + env(safe-area-inset-bottom));
                 min-width: 0;
@@ -2134,7 +2134,7 @@
 
         /* ── Widget selection toolbar (mobile/touch only, shown when a widget is selected) ── */
         #widgetSelToolbar { display: none; }
-        @media (max-width: 900px), (max-height: 500px) {
+        @media (max-width: 820px), (max-height: 500px) {
             #widgetSelToolbar {
                 display: none;
                 position: fixed;
@@ -2265,7 +2265,7 @@
             }
         }
         /* ── All touch devices (≤900px): bottom action bar, sidebar overlay ── */
-        @media (max-width: 900px) {
+        @media (max-width: 820px) {
           .mobile-sidebar-fab { display: none !important; } /* retired — replaced by action bar */
           #mobileZoomBar { display: flex !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
           #mobileActionBar {
@@ -2408,7 +2408,7 @@
         }
 
         /* ── Landscape phone (601-900px AND short viewport): burger menu ── */
-        @media (min-width: 601px) and (max-width: 900px) and (max-height: 500px) {
+        @media (min-width: 601px) and (max-width: 820px) and (max-height: 500px) {
           .mobile-burger {
             display: flex !important; align-items: center; justify-content: center;
             width: 34px; height: 34px; background: var(--panel); border: 1px solid var(--border);
@@ -2423,7 +2423,7 @@
         }
 
         /* ── Landscape tablet (601-900px AND tall viewport): burger + bottom action bar ── */
-        @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) {
+        @media (min-width: 601px) and (max-width: 820px) and (min-height: 501px) {
           .mobile-burger {
             display: flex !important; align-items: center; justify-content: center;
             width: 36px; height: 36px; background: var(--panel); border: 1px solid var(--border);
@@ -8576,7 +8576,7 @@
             switchRightTab('properties');
             if (document.getElementById('livePreviewToggle').checked) triggerPreview();
             /* Auto-close sidebar on mobile after adding widget */
-            if (window.innerWidth <= 900) {
+            if (window.innerWidth <= 820) {
                 document.querySelector('.sidebar')?.classList.remove('mobile-open');
                 document.getElementById('mobileMenuOverlay')?.classList.remove('active');
             }
