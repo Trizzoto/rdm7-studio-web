@@ -5007,6 +5007,127 @@
         }
 
 
+        /* ── Meter "simplified config" helpers ────────────────────────────────
+         * The firmware stores meters with start_angle / end_angle (LVGL coords:
+         * 0°=right, 90°=down, 180°=left, 270°=up; clockwise sweep) and with
+         * tick layout as minor_tick_count + major_tick_every. Both are awkward
+         * to dial in by hand. The inspector instead exposes:
+         *   - start_position  one of 8 cardinals — where the arc begins
+         *   - sweep_degrees   how far the arc spans (clockwise)
+         *   - minor_tick_step in DATA units (e.g. "every 500 RPM")
+         *   - major_tick_step in DATA units
+         * Legacy fields are still written so the firmware reads what it
+         * expects. _meterDeriveNewFromLegacy() inverts the mapping on load.
+         * auto_ticks lives in w.config but is hidden from the inspector. */
+        const _METER_POSITION_TO_START_ANGLE = {
+            'top': 270, 'top-right': 315, 'right': 0, 'bottom-right': 45,
+            'bottom': 90, 'bottom-left': 135, 'left': 180, 'top-left': 225,
+        };
+        const _METER_POSITION_OPTIONS = [
+            { v: 'bottom-left',  l: 'Bottom-Left' },
+            { v: 'bottom',       l: 'Bottom' },
+            { v: 'bottom-right', l: 'Bottom-Right' },
+            { v: 'left',         l: 'Left' },
+            { v: 'right',        l: 'Right' },
+            { v: 'top-left',     l: 'Top-Left' },
+            { v: 'top',          l: 'Top' },
+            { v: 'top-right',    l: 'Top-Right' },
+        ];
+        const _METER_SWEEP_OPTIONS = [
+            { v: 90,  l: '90°' },
+            { v: 120, l: '120°' },
+            { v: 180, l: '180°' },
+            { v: 210, l: '210°' },
+            { v: 240, l: '240°' },
+            { v: 270, l: '270°' },
+            { v: 300, l: '300°' },
+            { v: 330, l: '330°' },
+            { v: 360, l: '360° (Full)' },
+        ];
+        const _METER_NICE_STEPS = [
+            0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50,
+            100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 50000,
+        ];
+        function _meterNiceStep(range, targetCount) {
+            if (!isFinite(range) || range <= 0) return 1;
+            const ideal = range / Math.max(1, targetCount);
+            for (const s of _METER_NICE_STEPS) if (s >= ideal) return s;
+            return _METER_NICE_STEPS[_METER_NICE_STEPS.length - 1];
+        }
+        function _meterSyncDerived(c) {
+            if (!c) return;
+            if (c.start_position == null) c.start_position = 'bottom-left';
+            if (c.sweep_degrees == null)  c.sweep_degrees  = 270;
+            if (c.auto_ticks == null)     c.auto_ticks     = true;
+            const min = (typeof c.min === 'number') ? c.min : 0;
+            const max = (typeof c.max === 'number') ? c.max : 100;
+            const range = Math.max(0, max - min);
+            if (c.auto_ticks) {
+                c.minor_tick_step = _meterNiceStep(range, 10);
+                c.major_tick_step = c.minor_tick_step * 5;
+            } else {
+                if (!(typeof c.minor_tick_step === 'number') || c.minor_tick_step <= 0)
+                    c.minor_tick_step = _meterNiceStep(range, 10);
+                if (!(typeof c.major_tick_step === 'number') || c.major_tick_step <= 0)
+                    c.major_tick_step = c.minor_tick_step * 5;
+            }
+            const minorStep = Math.max(1e-6, c.minor_tick_step);
+            const majorStep = Math.max(minorStep, c.major_tick_step);
+            c.minor_tick_count = Math.min(100, Math.max(2, Math.round(range / minorStep) + 1));
+            c.major_tick_every = Math.min(50, Math.max(1, Math.round(majorStep / minorStep)));
+            const start = _METER_POSITION_TO_START_ANGLE[c.start_position] ?? 135;
+            const sweep = Math.max(1, Math.min(360, c.sweep_degrees | 0));
+            c.start_angle = start;
+            c.end_angle   = (start + sweep) % 360;
+
+            /* Non-linear scale: UX `scale_curve` (decimal), firmware reads
+             * `scale_curve_milli` (int). */
+            if (typeof c.scale_curve === 'number' && isFinite(c.scale_curve)) {
+                let g = c.scale_curve;
+                if (g < 0.1) g = 0.1; else if (g > 5.0) g = 5.0;
+                c.scale_curve_milli = Math.round(g * 1000);
+            } else if (c.scale_curve_milli == null) {
+                c.scale_curve_milli = 1000;
+                c.scale_curve = 1.0;
+            }
+        }
+        function _meterDeriveNewFromLegacy(c) {
+            if (!c) return;
+            if (c.start_position == null && typeof c.start_angle === 'number') {
+                const a = ((c.start_angle % 360) + 360) % 360;
+                let bestPos = 'bottom-left';
+                let bestDiff = 360;
+                for (const [pos, refA] of Object.entries(_METER_POSITION_TO_START_ANGLE)) {
+                    let d = Math.abs(refA - a);
+                    d = Math.min(d, 360 - d);
+                    if (d < bestDiff) { bestDiff = d; bestPos = pos; }
+                }
+                c.start_position = bestPos;
+            }
+            if (c.sweep_degrees == null &&
+                typeof c.start_angle === 'number' &&
+                typeof c.end_angle === 'number') {
+                const s = ((c.start_angle % 360) + 360) % 360;
+                const e = ((c.end_angle   % 360) + 360) % 360;
+                const sweep = (e - s + 360) % 360;
+                c.sweep_degrees = sweep === 0 ? 360 : sweep;
+            }
+            if (c.auto_ticks == null) c.auto_ticks = (c.minor_tick_count == null);
+            if (c.minor_tick_step == null && typeof c.minor_tick_count === 'number') {
+                const min = (typeof c.min === 'number') ? c.min : 0;
+                const max = (typeof c.max === 'number') ? c.max : 100;
+                c.minor_tick_step = (max - min) / Math.max(1, c.minor_tick_count - 1);
+            }
+            if (c.major_tick_step == null && typeof c.minor_tick_step === 'number'
+                && typeof c.major_tick_every === 'number') {
+                c.major_tick_step = c.minor_tick_step * c.major_tick_every;
+            }
+            if (c.scale_curve == null) {
+                c.scale_curve = (typeof c.scale_curve_milli === 'number')
+                    ? c.scale_curve_milli / 1000 : 1.0;
+            }
+        }
+
         const WIDGET_DEFS = {
             "rpm_bar": {
                 displayName: "RPM Bar", defW: CANVAS_W, defH: 55, defY: -ORIGIN_Y + Math.round(55 / 2), singleton: true,
@@ -5130,8 +5251,13 @@
                 fields: [
                     { name: "min", label: "Min Value", type: "number", def: 0, cat: "data" },
                     { name: "max", label: "Max Value", type: "number", def: 100, cat: "data" },
-                    { name: "start_angle", label: "Start angle", type: "number", def: 135, cat: "data" },
-                    { name: "end_angle", label: "End angle", type: "number", def: 45, cat: "data" },
+                    { name: "start_position", label: "Start Position", type: "select", def: "bottom-left", cat: "data", options: _METER_POSITION_OPTIONS },
+                    { name: "sweep_degrees", label: "Sweep", type: "select", def: 270, cat: "data", options: _METER_SWEEP_OPTIONS },
+                    /* auto_ticks lives in w.config but is hidden — see _meterSyncDerived. */
+                    { name: "minor_tick_step", label: "Minor Tick Spacing", type: "number", def: 10, cat: "data" },
+                    { name: "major_tick_step", label: "Major Tick Spacing", type: "number", def: 50, cat: "data" },
+                    /* Non-linear scale (gamma): 1.0 linear, <1 expands low end. */
+                    { name: "scale_curve", label: "Scale Curve (1.0 = linear)", type: "number", def: 1.0, cat: "data" },
                     { name: "meter_bg_color", label: "Background Color", type: "color", def: 0x3D3D3D, cat: "appearance" },
                     { name: "meter_bg_opa", label: "Background Opacity", type: "stepper", min: 0, max: 255, def: 255, cat: "appearance" },
                     { name: "bg_image_name", label: "Background Image", type: "image_picker", def: "", cat: "appearance" },
@@ -5140,11 +5266,9 @@
                     { name: "border_opa", label: "Border Opacity", type: "stepper", min: 0, max: 255, def: 255, cat: "appearance" },
                     { name: "scale_padding", label: "Scale Padding", type: "stepper", min: 0, max: 100, def: 0, cat: "appearance" },
                     { name: "show_ticks", label: "Show Ticks", type: "checkbox", def: true, cat: "appearance" },
-                    { name: "minor_tick_count", label: "Tick Count", type: "stepper", min: 2, max: 100, def: 21, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "minor_tick_width", label: "Tick Width", type: "stepper", min: 1, max: 20, def: 2, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "minor_tick_length", label: "Tick Length", type: "stepper", min: 1, max: 50, def: 10, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "minor_tick_color", label: "Tick Color", type: "color", def: 0x9E9E9E, cat: "appearance", enabledBy: "show_ticks" },
-                    { name: "major_tick_every", label: "Major Tick Every", type: "stepper", min: 1, max: 50, def: 5, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "major_tick_width", label: "Major Tick Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "major_tick_length", label: "Major Tick Length", type: "stepper", min: 1, max: 50, def: 15, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "major_tick_color", label: "Major Tick Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_ticks" },
@@ -5159,6 +5283,7 @@
                     { name: "needle_width", label: "Needle Width", type: "stepper", min: 1, max: 20, def: 4, cat: "appearance" },
                     { name: "needle_color", label: "Needle Color", type: "color", def: 0xFFFFFF, cat: "appearance" },
                     { name: "needle_r_mod", label: "Needle Length Trim", type: "stepper", min: -100, max: 100, def: -10, cat: "appearance" },
+                    { name: "needle_rear_length", label: "Needle Rear Length", type: "stepper", min: 0, max: 100, def: 0, cat: "appearance" },
                     { name: "needle_tip_style", label: "Needle Tip Style", type: "select", def: 0, cat: "appearance",
                       options: [ {v:0, l:"Flat"}, {v:1, l:"Rounded"}, {v:2, l:"Lance"}, {v:3, l:"Dagger"}, {v:4, l:"Spade"}, {v:5, l:"Diamond"} ] },
                     /* Tip-tuning knobs. Stored value 0 = "use the built-in
@@ -6796,6 +6921,14 @@
         let previewTimer = null;
         function buildFirmwarePayload() {
             const payload = JSON.parse(JSON.stringify(currentLayout));
+            /* Drop widgets the user has toggled invisible in the layers panel
+             * — this is what "hide" should mean end-to-end. Hidden widgets
+             * stay in currentLayout so the user can flip them back on within
+             * the same editing session, but they don't survive a reload
+             * (firmware doesn't honor a "hidden" flag). */
+            if (Array.isArray(payload.widgets)) {
+                payload.widgets = payload.widgets.filter(w => !w.hidden);
+            }
             /* Tag layout with target screen dimensions */
             payload.screen_w = CANVAS_W;
             payload.screen_h = CANVAS_H;
@@ -8225,6 +8358,22 @@
 
             w.config[field] = finalVal;
 
+            /* Meter: any change to range, sweep position, or tick step needs
+             * to re-derive the legacy LVGL angles + tick count that the
+             * firmware actually consumes. Editing a tick step also flips
+             * auto_ticks off so the value sticks across subsequent syncs. */
+            const METER_TRIGGERS = new Set([
+                'min', 'max', 'start_position', 'sweep_degrees',
+                'minor_tick_step', 'major_tick_step', 'scale_curve',
+            ]);
+            if (w.type === 'meter' && METER_TRIGGERS.has(field)) {
+                if (field === 'minor_tick_step' || field === 'major_tick_step') {
+                    w.config.auto_ticks = false;
+                }
+                _meterSyncDerived(w.config);
+                if (field === 'min' || field === 'max') updateInspector();
+            }
+
             /* If this field is a toggle that controls sub-fields, re-render inspector */
             if (fieldDef && fieldDef.type === 'checkbox') {
                 const hasChildren = def.fields.some(f => f.enabledBy === field || f.enabledBy === '!' + field);
@@ -8559,6 +8708,10 @@
             def.fields.forEach(f => {
                 config[f.name] = f.def;
             });
+            /* Meter: derive legacy LVGL angles + tick count from the
+             * inspector-friendly fields so the firmware payload has what
+             * it expects from the moment the widget is created. */
+            if (type === 'meter') _meterSyncDerived(config);
             const widgetId = nextWidgetId(type);
             const newWidget = {
                 type: type,
@@ -9119,6 +9272,17 @@
                     if ('endian' in s) {
                         s.is_little_endian = s.endian === 1;
                         delete s.endian;
+                    }
+                });
+                /* Meter widgets: layouts saved by the firmware (or older
+                 * editors) only carry start_angle/end_angle and the
+                 * count-based tick fields. Derive the inspector-friendly
+                 * fields, then re-sync to keep both representations in
+                 * agreement on every save round-trip. */
+                (currentLayout.widgets || []).forEach(w => {
+                    if (w.type === 'meter' && w.config) {
+                        _meterDeriveNewFromLegacy(w.config);
+                        _meterSyncDerived(w.config);
                     }
                 });
                 /* Bridge firmware→web */
