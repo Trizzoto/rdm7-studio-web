@@ -11326,23 +11326,6 @@
             const preset = SCREEN_PRESETS.find(p => p.id === presetId);
             if (!preset) return;
             try { localStorage.setItem('rdm7_screen_preset', presetId); } catch (e) { }
-
-            /* Widgets are stored as offsets from the screen centre. When the
-             * user picks a new screen size, the centre moves, which would
-             * visually slide every widget toward the new centre. Counter-shift
-             * each widget's stored offset so it stays at the same canvas-
-             * absolute position. (Only applied for user-driven changes — init
-             * and device-info paths leave coords alone, since the saved layout
-             * is already in the right coord system for the saved screen size.) */
-            const dx = ORIGIN_X - Math.round(preset.w / 2);
-            const dy = ORIGIN_Y - Math.round(preset.h / 2);
-            if ((dx || dy) && currentLayout && Array.isArray(currentLayout.widgets)) {
-                for (const wid of currentLayout.widgets) {
-                    if (typeof wid.x === 'number') wid.x += dx;
-                    if (typeof wid.y === 'number') wid.y += dy;
-                }
-            }
-
             applyScreenPreset(preset, true);
         }
 
