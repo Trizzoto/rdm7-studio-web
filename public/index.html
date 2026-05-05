@@ -7448,9 +7448,11 @@
                 <div class="field"><label>W</label><input type="number" value="${w.w}" onchange="updateWidgetField('w', parseInt(this.value), true)" oninput="updateWidgetFieldDeferred('w', parseInt(this.value))" ${disabledAttr}></div>
                 <div class="field"><label>H</label><input type="number" value="${w.h}" onchange="updateWidgetField('h', parseInt(this.value), true)" oninput="updateWidgetFieldDeferred('h', parseInt(this.value))" ${disabledAttr}></div>
             </div>`;
-            html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
-                <button class="btn btn-secondary" style="font-size:11px" onclick="moveWidgetLayer('up')" ${disabledAttr}>Bring Forward</button>
-                <button class="btn btn-secondary" style="font-size:11px" onclick="moveWidgetLayer('down')" ${disabledAttr}>Send Backward</button>
+            html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:4px; margin-top:4px;">
+                <button class="btn btn-secondary" style="font-size:10px;padding:4px 2px;" title="Bring to Front" onclick="moveWidgetLayer('front')" ${disabledAttr}>⏫ Front</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:4px 2px;" title="Bring Forward (one step)" onclick="moveWidgetLayer('up')" ${disabledAttr}>↑ Fwd</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:4px 2px;" title="Send Backward (one step)" onclick="moveWidgetLayer('down')" ${disabledAttr}>↓ Back</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:4px 2px;" title="Send to Back" onclick="moveWidgetLayer('back')" ${disabledAttr}>⏬ Back</button>
             </div>`;
             html += `<button class="btn btn-secondary" style="margin-top:8px; border-color:hsl(0, 100%, 63%); color:hsl(0, 100%, 63%); width:100%; font-size:11px;" onclick="deleteWidget()" ${disabledAttr}>Delete Widget</button>`;
             html += `</div></details>`;
@@ -8870,15 +8872,29 @@
 
         function moveWidgetLayer(dir) {
             if (selectedIndex === -1) return;
-            const w = currentLayout.widgets.splice(selectedIndex, 1)[0];
-            if (dir === 'up') {
-                currentLayout.widgets.push(w);
-                selectedIndex = currentLayout.widgets.length - 1;
-            } else {
-                currentLayout.widgets.unshift(w);
-                selectedIndex = 0;
+            pushHistory();
+            const arr = currentLayout.widgets;
+            const oldIdx = selectedIndex;
+            const w = arr.splice(oldIdx, 1)[0];
+            let newIdx;
+            if (dir === 'front') {
+                arr.push(w);
+                newIdx = arr.length - 1;
+            } else if (dir === 'back') {
+                arr.unshift(w);
+                newIdx = 0;
+            } else if (dir === 'up') {
+                /* Single step toward the front (later in the array) */
+                newIdx = Math.min(oldIdx + 1, arr.length);
+                arr.splice(newIdx, 0, w);
+            } else { /* 'down' */
+                newIdx = Math.max(oldIdx - 1, 0);
+                arr.splice(newIdx, 0, w);
             }
+            selectedIndex = newIdx;
+            selectedIndices = new Set([newIdx]);
             renderEditor();
+            updateInspector();
             if (document.getElementById('livePreviewToggle').checked) triggerPreview();
         }
 
