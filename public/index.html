@@ -3561,6 +3561,20 @@
                 });
                 _wasmReady = true;
                 console.log('[WASM] Preview engine loaded successfully');
+                /* WASM main() created SDL at the firmware-default 800x480 and
+                 * stamped the canvas DOM back to those dims, undoing any size
+                 * applyScreenDimensions had set during page init. If the user's
+                 * saved preset isn't 800x480, sync the canvas + SDL to the
+                 * intended size now that WASM is ready. */
+                if (CANVAS_W !== 800 || CANVAS_H !== 480) {
+                    try {
+                        canvasEl.width = CANVAS_W;
+                        canvasEl.height = CANVAS_H;
+                        canvasEl.style.width = CANVAS_W + 'px';
+                        canvasEl.style.height = CANVAS_H + 'px';
+                        wasmModule.ccall('set_display_size', null, ['number', 'number'], [CANVAS_W, CANVAS_H]);
+                    } catch(e) { console.warn('[WASM] init resize failed:', e); }
+                }
                 /* Trigger initial preview now that WASM is ready */
                 updateWasmPreview();
             } catch(e) {
