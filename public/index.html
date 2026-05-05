@@ -3647,9 +3647,52 @@
             _dlProgressShow(`Download complete`, 100);
             setTimeout(_dlProgressHide, 800);
         }
+        /* User-uploaded fonts referenced by the current layout */
+        const _wasmRegisteredFonts = new Set();
+        const _wasmFailedFonts = new Set();
+        async function _syncWasmFonts() {
+            if (!wasmModule || _wasmCrashed) return;
+            /* Walk the layout for "Family:size" font values — those use custom
+             * uploaded fonts that need to be pushed to the WASM font_manager. */
+            const families = new Set();
+            const seen = (obj) => {
+                if (!obj || typeof obj !== 'object') return;
+                for (const k in obj) {
+                    const v = obj[k];
+                    if (typeof v === 'string' && v.includes(':')) {
+                        const fam = v.slice(0, v.indexOf(':'));
+                        if (fam && !/^(montserrat|fugaz|manrope)$/i.test(fam)) families.add(fam);
+                    } else if (v && typeof v === 'object') seen(v);
+                }
+            };
+            for (const w of (currentLayout.widgets || [])) seen(w.config);
+            for (const fam of families) {
+                if (_wasmRegisteredFonts.has(fam) || _wasmFailedFonts.has(fam)) continue;
+                try {
+                    const b64 = await RDM.getFontData(fam);
+                    if (!b64) { _wasmFailedFonts.add(fam); continue; }
+                    const bin = atob(b64);
+                    const u8 = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                    const ptr = wasmModule._malloc(u8.length);
+                    if (!ptr) { _wasmFailedFonts.add(fam); continue; }
+                    wasmModule.HEAPU8.set(u8, ptr);
+                    wasmModule.ccall('register_font', null,
+                        ['string', 'number', 'number'], [fam, ptr, u8.length]);
+                    wasmModule._free(ptr);
+                    _wasmRegisteredFonts.add(fam);
+                } catch (e) {
+                    _wasmFailedFonts.add(fam);
+                    if (e instanceof WebAssembly.RuntimeError) { _wasmCrashed = true; return; }
+                }
+            }
+        }
+
         async function updateWasmPreview() {
             if (!wasmModule || _wasmCrashed) return;
             try {
+                await _syncWasmFonts();
+                if (_wasmCrashed) return;
                 await _syncWasmImages();
                 if (_wasmCrashed) return;
                 const json = buildLayoutJson();
