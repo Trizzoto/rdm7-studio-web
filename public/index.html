@@ -8765,8 +8765,16 @@
         /* ─── Font management ──────────────────────────────────────────────── */
 
         async function _refreshFontList() {
+            /* RDM.listFonts() returns either {name,size} objects or legacy
+             * plain strings depending on the transport. Normalize to a flat
+             * array of family names so the font-picker dropdown — which
+             * interpolates `${fname}:${size}` — doesn't end up with
+             * "[object Object]" entries. */
             try {
-                _cachedFontList = await RDM.listFonts();
+                const raw = await RDM.listFonts();
+                _cachedFontList = (raw || [])
+                    .map(f => typeof f === 'string' ? f : (f && f.name))
+                    .filter(Boolean);
             } catch (e) { _cachedFontList = []; }
         }
 
