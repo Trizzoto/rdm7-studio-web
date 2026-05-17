@@ -5687,7 +5687,7 @@
                      * _meterSyncDerived translates this into the LVGL
                      * start_angle/end_angle pair the firmware reads. */
                     { name: "start_angle_user", label: "Start Angle (°)", type: "stepper", def: 225, cat: "data", min: 0, max: 359, step: 5 },
-                    { name: "sweep_degrees", label: "Sweep", type: "select", def: 270, cat: "data", options: _METER_SWEEP_OPTIONS },
+                    { name: "sweep_degrees", label: "Sweep", type: "slider", def: 270, cat: "data", min: 30, max: 360, step: 5 },
                     { name: "reverse", label: "Reverse Direction", type: "checkbox", def: false, cat: "data" },
                     /* auto_ticks lives in w.config but is hidden — see _meterSyncDerived. */
                     { name: "minor_tick_step", label: "Minor Tick Value Spacing", type: "number", def: 10, cat: "data" },
@@ -5720,7 +5720,7 @@
                     { name: "major_tick_length", label: "Major Tick Length", type: "stepper", min: 1, max: 50, def: 15, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "major_tick_color", label: "Major Tick Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_ticks" },
                     { name: "show_tick_labels", label: "Show Tick Labels", type: "checkbox", def: true, cat: "appearance" },
-                    { name: "label_gap", label: "Label Gap", type: "stepper", min: -20, max: 50, def: 10, cat: "appearance", enabledBy: "show_tick_labels" },
+                    { name: "label_gap", label: "Label Gap", type: "stepper", min: -150, max: 150, def: 10, cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "tick_label_font", label: "Tick Label Font", type: "font", def: "", cat: "appearance", enabledBy: "show_tick_labels" },
                     { name: "tick_label_color", label: "Tick Label Color", type: "color", def: 0xFFFFFF, cat: "appearance", enabledBy: "show_tick_labels" },
                     /* Tick label divisor: divides each tick label by
@@ -7781,8 +7781,15 @@
             } else if (f.type === 'textarea') {
                 const escaped = String(val || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                 html += `<textarea rows="3" style="resize:vertical; width:100%; font-size:12px; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-sm); padding:4px 6px; font-family:inherit;" oninput="updateWidgetConfigField('${f.name}', this.value, false)" ${disabledAttr}>${escaped}</textarea>`;
+            } else if (f.type === 'number') {
+                /* Number inputs commit on blur (or Enter) so the mobile
+                 * keyboard doesn't trigger a re-render on every keystroke,
+                 * which would yank focus out of the field mid-typing. Pure
+                 * text fields keep the live oninput commit since they're
+                 * usually for labels where each keystroke should preview. */
+                html += `<input type="number" value="${val}" onblur="updateWidgetConfigField('${f.name}', this.value, true)" onkeydown="if(event.key==='Enter') this.blur()" ${disabledAttr}>`;
             } else {
-                html += `<input type="${f.type === 'number' ? 'number' : 'text'}" value="${val}" oninput="updateWidgetConfigField('${f.name}', this.value, ${f.type === 'number'})" ${disabledAttr}>`;
+                html += `<input type="text" value="${val}" oninput="updateWidgetConfigField('${f.name}', this.value, false)" ${disabledAttr}>`;
             }
             html += `</div>`;
             return html;
