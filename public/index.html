@@ -10982,7 +10982,18 @@
                         updateStatus(`Saving image "${img.name}"...`);
                         let imgBin = ''; for (let j = 0; j < img.data.length; j++) imgBin += String.fromCharCode(img.data[j]);
                         await RDM.setImageData(img.name, btoa(imgBin));
-                        await RDM.addImageMeta({ name: img.name, width: 0, height: 0 });
+                        /* Parse the RDMIMG header to recover real dimensions
+                         * (offsets 4-5 width LE, 6-7 height LE). Previously
+                         * the meta was hardcoded to 0×0 so imported images
+                         * rendered as zero-sized in the editor. */
+                        let imgW = 0, imgH = 0;
+                        if (img.data.length >= 8 &&
+                            img.data[0] === 0x52 && img.data[1] === 0x44 &&
+                            img.data[2] === 0x4D && img.data[3] === 0x49) {
+                            imgW = img.data[4] | (img.data[5] << 8);
+                            imgH = img.data[6] | (img.data[7] << 8);
+                        }
+                        await RDM.addImageMeta({ name: img.name, width: imgW, height: imgH });
                         uploadedImages++;
                     } catch (e) {
                         console.error(`Failed to save image "${img.name}":`, e);
