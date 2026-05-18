@@ -10923,6 +10923,27 @@
             showToast(`Exported ${name}.rdm${assetMsg}`, 'success');
         }
 
+        /* Walk a layout and return the Set of image names referenced by any
+         * widget's image_picker field. Used by .rdm import to compute the
+         * set of orphan images (referenced by the OLD layout but not the
+         * NEW one) so we can prune them from IndexedDB on each import. */
+        function _collectLayoutImageRefs(layout) {
+            const refs = new Set();
+            if (!layout || !Array.isArray(layout.widgets)) return refs;
+            const defs = typeof WIDGET_DEFS !== 'undefined' ? WIDGET_DEFS : {};
+            for (const w of layout.widgets) {
+                if (!w || !w.config || !w.type) continue;
+                const def = defs[w.type];
+                if (!def || !def.fields) continue;
+                for (const f of def.fields) {
+                    if (f.type !== 'image_picker') continue;
+                    const v = w.config[f.name];
+                    if (v && typeof v === 'string') refs.add(v);
+                }
+            }
+            return refs;
+        }
+
         /* Hoisted .rdm byte processor — shared between manual import (importRdm),
            URL-triggered import (Marketplace Push-to-Dash), and future integrations.
            Declared at module scope so it's callable before any user-triggered import. */
@@ -10976,6 +10997,22 @@
                 }
                 /* Normalise to current schema on save */
                 layoutData.schema_version = CURRENT_SCHEMA;
+                /* Smart orphan cleanup: drop images referenced by the OLD
+                 * layout that aren't in the NEW one. Preserves custom user
+                 * uploads (those aren't tied to any layout) and shared
+                 * images (referenced by both old + new). Failures are
+                 * non-fatal — the import still proceeds. */
+                try {
+                    const oldRefs = _collectLayoutImageRefs(currentLayout);
+                    const newRefs = _collectLayoutImageRefs(layoutData);
+                    const orphans = [...oldRefs].filter(name => name && !newRefs.has(name));
+                    for (const name of orphans) {
+                        try {
+                            await RDM.deleteImage(name);
+                            console.log('[import] removed orphan image:', name);
+                        } catch (e) { /* not fatal */ }
+                    }
+                } catch (e) { console.warn('[import] orphan cleanup skipped:', e); }
                 let uploadedImages = 0;
                 for (const img of images) {
                     try {
