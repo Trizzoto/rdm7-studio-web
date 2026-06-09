@@ -8843,7 +8843,7 @@
                 html += `<div class="assign-section-header">Layout Signals</div>`;
                 layoutSigs.forEach(s => {
                     let metaText;
-                    if (s.can_id === 0) {
+                    if (s.can_id == null || s.can_id === 0) {
                         metaText = 'Internal';
                     } else {
                         const hexId = '0x' + s.can_id.toString(16).toUpperCase().padStart(3, '0');
@@ -9544,7 +9544,7 @@
                 return;
             }
             c.innerHTML = sigs.map((s, i) => {
-                const sIsInternal = (s.can_id === 0);
+                const sIsInternal = (s.can_id == null || s.can_id === 0);
                 const hexId = sIsInternal ? null : '0x' + s.can_id.toString(16).toUpperCase().padStart(3, '0');
                 const sigMeta = sIsInternal ? 'Internal' : `${hexId} | ${s.bit_start}:${s.bit_length}`;
                 const bound = boundMap[s.name] || [];
@@ -9691,19 +9691,24 @@
             if (emptyEl) emptyEl.style.display = 'none';
             if (tableEl) tableEl.style.display = '';
 
-            const filtered = sigs.map((s, i) => ({ s, i })).filter(({ s }) =>
-                !filter || s.name.toLowerCase().includes(filter) ||
-                ('0x' + s.can_id.toString(16)).toLowerCase().includes(filter) ||
-                s.can_id.toString().includes(filter) ||
-                (s.can_id === 0 && 'internal'.includes(filter))
-            );
+            const filtered = sigs.map((s, i) => ({ s, i })).filter(({ s }) => {
+                if (!filter) return true;
+                /* v14 layouts can carry metadata-only / internal signals with no
+                 * can_id (decode lives on the device's channels, not the layout) —
+                 * treat a missing can_id as internal so we never .toString(undefined). */
+                const cid = (s.can_id == null) ? 0 : s.can_id;
+                return s.name.toLowerCase().includes(filter) ||
+                    ('0x' + cid.toString(16)).toLowerCase().includes(filter) ||
+                    cid.toString().includes(filter) ||
+                    (cid === 0 && 'internal'.includes(filter));
+            });
 
             tbody.innerHTML = filtered.map(({ s, i }) => {
                 const bound = boundNames.has(s.name);
                 const boundWidgets = bound ? (currentLayout.widgets || []).filter(w => w.signal === s.name).map(w => w.id).join(', ') : '';
                 const boundTitle = bound ? `Bound to: ${boundWidgets}` : 'Not bound to any widget';
                 const pickBtn = isPickMode ? `<td style="width:60px;"><button class="btn" style="font-size:10px; padding:3px 8px;" onclick="pickSignalFromModal('${s.name.replace(/'/g, "\\'")}')">Select</button></td>` : '';
-                const isInternal = (s.can_id === 0);
+                const isInternal = (s.can_id == null || s.can_id === 0);
                 const dimStyle = isInternal ? ' style="opacity:0.3; pointer-events:none;"' : '';
 
                 /* CAN ID column: show live value for internal signals, hex input for CAN */
