@@ -1176,6 +1176,10 @@
         .ch2-test input[type=range] { flex:1; accent-color:var(--accent); }
         .ch2-testval { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text); min-width:46px; text-align:right; }
         .ch2-side-th { font-size:9px; color:var(--text-muted); font-family:'JetBrains Mono', monospace; white-space:nowrap; }
+        /* ── Boot / loading animation overlay ── */
+        #bootAnim { position:absolute; inset:0; z-index:60; display:none; align-items:center; justify-content:center; background:#000; pointer-events:none; overflow:hidden; }
+        #bootAnim.run { display:flex; }
+        #bootAnimLogo { width:42%; max-width:320px; height:auto; opacity:0; transform:scale(0.9); filter:drop-shadow(0 0 26px rgba(229,46,46,0.30)); }
         @media (max-width:640px) { .ch2-body { grid-template-columns:1fr; } .ch2-listpane { max-height:38%; } .ch2-shell { height:88vh; } }
 
         .modal-content {
@@ -3013,6 +3017,7 @@
                     style="font-size:9px; padding:2px 6px; display:none;" title="Scan for RDM-7 devices on network">Scan</button>
             </div>
             <div class="header-divider"></div>
+            <button class="btn btn-secondary" id="pillIntro" onclick="playBootAnimation()" title="Preview the boot / loading animation" style="font-size:10px;padding:4px 10px;">Intro</button>
             <button class="btn btn-secondary" id="pillChannels" onclick="openChannels()" title="Configure data channels — decode, units &amp; warn thresholds, like your dash" style="font-size:10px;padding:4px 10px;">Channels</button>
             <button class="btn btn-secondary" id="pillSimulate" onclick="toggleSimulation()" title="Run demo drive (live preview)" style="font-size:10px;padding:4px 10px;">Demo</button>
             <select id="demoPresetSel" onchange="setDemoPreset(this.value)" title="Demo drive style" style="display:none;font-size:10px;padding:3px 4px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
@@ -3085,6 +3090,8 @@
                             <div id="guideX" class="smart-guide-x"></div>
                             <div id="guideY" class="smart-guide-y"></div>
                         </div>
+                        <!-- Boot / loading animation overlay (splash → curtain wipe) -->
+                        <div id="bootAnim"><img id="bootAnimLogo" src="RDM Logo.png" alt=""></div>
                     </div>
                 </div>
             </div>
@@ -4188,6 +4195,36 @@
             try {
                 wasmModule.ccall('inject_signal', null, ['string', 'number'], [name, value]);
             } catch(e) {}
+        }
+
+        /* Boot / loading animation — mirrors the device's boot entrance: the RDM
+         * splash logo shows, then a top-to-bottom curtain wipe reveals the
+         * dashboard (the device fades its widgets in top-to-bottom; the WASM
+         * renders the whole canvas at once, so we approximate with the wipe). */
+        let _bootAnimTimers = [];
+        function playBootAnimation() {
+            const a = document.getElementById('bootAnim');
+            const logo = document.getElementById('bootAnimLogo');
+            if (!a || !logo) return;
+            _bootAnimTimers.forEach(clearTimeout); _bootAnimTimers = [];
+            a.classList.add('run');
+            a.style.transition = 'none';
+            a.style.clipPath = 'inset(0 0 0 0)';
+            logo.style.transition = 'none';
+            logo.style.opacity = '0';
+            logo.style.transform = 'scale(0.9)';
+            void a.offsetWidth; /* reflow so the reset sticks before animating */
+            logo.style.transition = 'opacity 0.32s ease, transform 0.55s cubic-bezier(.2,.7,.3,1)';
+            logo.style.opacity = '1';
+            logo.style.transform = 'scale(1)';
+            _bootAnimTimers.push(setTimeout(() => {
+                logo.style.transition = 'opacity 0.25s ease, transform 0.3s ease';
+                logo.style.opacity = '0';
+                logo.style.transform = 'scale(1.05)';
+                a.style.transition = 'clip-path 0.62s cubic-bezier(.4,0,.2,1)';
+                a.style.clipPath = 'inset(100% 0 0 0)';
+            }, 850));
+            _bootAnimTimers.push(setTimeout(() => { a.classList.remove('run'); }, 1560));
         }
 
         function buildLayoutJson() {
@@ -10480,6 +10517,13 @@
                 populateEcuContextSelect();
                 updateStatus(currentScreenMode === 'splash' ? 'Loaded splash screen' : `Loaded ${name}`);
                 if (currentScreenMode !== 'splash') checkDraft();
+                /* Play the boot animation on the first dashboard load (and in
+                 * marketplace preview), so people see the device boot. Replay
+                 * any time via the Intro button. */
+                if (currentScreenMode !== 'splash' && (!window._bootPlayedOnce || document.documentElement.classList.contains('preview-embedded'))) {
+                    window._bootPlayedOnce = true;
+                    setTimeout(() => { try { playBootAnimation(); } catch (e) {} }, 350);
+                }
             } catch (e) { updateStatus(`Error loading layout ${name}`, true); }
         }
 
