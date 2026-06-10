@@ -148,12 +148,37 @@
         /* Workspace Layout */
         .workspace {
             display: grid;
-            grid-template-columns: 1fr 4px var(--right-sidebar-w, 320px);
+            grid-template-columns: var(--left-sidebar-w, 240px) 4px 1fr 4px var(--right-sidebar-w, 320px);
             grid-template-rows: 1fr;
             flex: 1;
             min-height: 0;
             overflow: hidden;
         }
+        /* Collapsed left sidebar → thin toggle strip. Use visibility/width on
+         * #leftResize (NOT display:none) so it stays a grid column and the other
+         * children don't shift left. */
+        .workspace.left-collapsed {
+            grid-template-columns: 28px 0 1fr 4px var(--right-sidebar-w, 320px);
+        }
+        .workspace.left-collapsed .sidebar-left > *:not(.sidebar-collapse-toggle) { display: none; }
+        .workspace.left-collapsed #leftResize { visibility: hidden; }
+        .sidebar-left { border-right: 1px solid var(--border); }
+        .sidebar-collapse-toggle {
+            position: absolute;
+            top: 8px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            line-height: 1;
+            z-index: 2;
+        }
+        .sidebar-collapse-toggle:hover { color: var(--text); border-color: var(--text-muted); }
 
         /* Sidebars */
         .sidebar {
@@ -2104,6 +2129,7 @@
         html.preview-embedded .align-bar,
         html.preview-embedded .sidebar,
         html.preview-embedded .sidebar-right,
+        html.preview-embedded .sidebar-resize,
         html.preview-embedded #mobileActionBar,
         html.preview-embedded #mobileZoomBar,
         html.preview-embedded #widgetSelToolbar,
@@ -2123,6 +2149,7 @@
            editing, saving, exporting. Canvas always fitted to screen. */
         html.preview-locked .sidebar,
         html.preview-locked .sidebar-right,
+        html.preview-locked .sidebar-resize,
         html.preview-locked .resize-handle,
         html.preview-locked .align-bar,
         html.preview-locked #webPreviewBanner,
@@ -2946,9 +2973,19 @@
         </a>
     </header>
 
-    <div class="workspace">
+    <div class="workspace" id="workspaceGrid">
         <!-- Hidden sigList kept for renderSignals() compatibility -->
         <div id="sigList" style="display:none;"></div>
+
+        <!-- Left Sidebar: Widgets palette (collapsible) -->
+        <aside class="sidebar sidebar-left" style="position:relative;">
+            <button class="sidebar-collapse-toggle" id="leftCollapseBtn" onclick="toggleLeftSidebar()" title="Collapse sidebar">&laquo;</button>
+            <div class="sidebar-header" style="padding-right:36px;">Widgets</div>
+            <div id="paletteList" style="flex:1; overflow-y:auto; min-height:0;"></div>
+        </aside>
+
+        <!-- Left Resize Handle -->
+        <div class="sidebar-resize" id="leftResize" data-side="left"></div>
 
         <!-- Main Stage -->
         <main class="main-stage" style="flex-direction:column; padding:0;">
@@ -2990,14 +3027,10 @@
         <!-- Right Sidebar: Widgets + Properties + Layers -->
         <aside class="sidebar sidebar-right">
             <div class="right-sidebar-tabs">
-                <button class="right-sidebar-tab active" onclick="switchRightTab('widgets')">Widgets</button>
-                <button class="right-sidebar-tab" onclick="switchRightTab('properties')">Properties</button>
+                <button class="right-sidebar-tab active" onclick="switchRightTab('properties')">Properties</button>
                 <button class="right-sidebar-tab" onclick="switchRightTab('layers')">Layers</button>
             </div>
-            <div class="right-tab-content active" id="rightTabWidgets" style="overflow:hidden;">
-                <div id="paletteList" style="flex:1; overflow-y:auto; min-height:0;"></div>
-            </div>
-            <div class="right-tab-content" id="rightTabProperties">
+            <div class="right-tab-content active" id="rightTabProperties">
             <div id="inspectorContent" class="inspector-group" style="flex:1; overflow-y:auto; min-height:0;">
                 <div class="inspector-empty">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -4158,6 +4191,15 @@
                 t.classList.toggle('active', t.textContent.toLowerCase() === tabName));
             right.querySelectorAll('.right-tab-content').forEach(c =>
                 c.classList.toggle('active', c.id === 'rightTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)));
+        }
+
+        /* Collapse / expand the left (Widgets) sidebar to a thin strip. */
+        function toggleLeftSidebar() {
+            const w = document.getElementById('workspaceGrid');
+            const btn = document.getElementById('leftCollapseBtn');
+            if (!w) return;
+            w.classList.toggle('left-collapsed');
+            if (btn) btn.innerHTML = w.classList.contains('left-collapsed') ? '&raquo;' : '&laquo;';
         }
 
 
@@ -13702,11 +13744,21 @@ function toggleMobileSidebar() {
 
 /* ── Mobile bottom action bar ───────────────────────────────────────── */
 function openSidebarTab(tab) {
-  if (typeof switchRightTab === 'function') switchRightTab(tab);
-  var sidebar = document.querySelector('.sidebar-right') || document.querySelector('.sidebar');
+  /* Widgets now live in the LEFT sidebar; Properties/Layers in the RIGHT one. */
+  var sidebar;
+  if (tab === 'widgets') {
+    sidebar = document.querySelector('.sidebar-left');
+  } else {
+    if (typeof switchRightTab === 'function') switchRightTab(tab);
+    sidebar = document.querySelector('.sidebar-right');
+  }
   var overlay = document.getElementById('mobileMenuOverlay');
   var panel = document.getElementById('mobileMenuPanel');
   if (panel) panel.classList.remove('active');
+  /* Close the other sidebar drawer if it's open. */
+  document.querySelectorAll('.sidebar.mobile-open').forEach(function(s) {
+    if (s !== sidebar) s.classList.remove('mobile-open');
+  });
   if (sidebar && !sidebar.classList.contains('mobile-open')) {
     sidebar.classList.add('mobile-open');
     if (overlay) overlay.classList.add('active');
