@@ -2952,6 +2952,12 @@
             </div>
             <div class="header-divider"></div>
             <button class="btn btn-secondary" id="pillSimulate" onclick="toggleSimulation()" title="Run demo drive (live preview)" style="font-size:10px;padding:4px 10px;">Demo</button>
+            <select id="demoPresetSel" onchange="setDemoPreset(this.value)" title="Demo drive style" style="display:none;font-size:10px;padding:3px 4px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
+                <option value="street">Street</option>
+                <option value="spirited" selected>Spirited</option>
+                <option value="drag">Drag run</option>
+                <option value="cruise">Cruise</option>
+            </select>
             <button class="btn btn-secondary btn-icon" id="simSettingsBtn" onclick="openSimSettings()" title="Simulation settings" style="display:none;font-size:9px;padding:2px 5px;">&#9881;</button>
             <div class="header-divider"></div>
             <button class="btn btn-secondary btn-icon" onclick="resetView()" title="Reset view">&#8634;</button>
@@ -8484,32 +8490,43 @@
          * and loops. Temps warm up once and hover; boost/lambda/EGT track load.
          * Unrecognised signals fall back to the per-signal simulator. */
         let _demoMode = true;
-        const _DEMO_CYCLE = 38;          /* seconds per loop */
-        const _DEMO_TOP_SPEED = 235;     /* km/h */
         const _DEMO_IDLE_RPM = 820;
         const _DEMO_REDLINE = 7200;
         /* km/h gained per 1000 rpm in each gear (1..6) — tuned so upshifts land
          * near ~6300 rpm and drop to ~3400 in the next gear. */
         const _DEMO_GEAR_RATIO = [0, 7, 13, 20, 28, 38, 50];
+        /* Drive-style presets: speed envelope + phase timing (seconds).
+         * curve = accel easing power (higher = gentler tail); thr = throttle %
+         * while accelerating. Cycle length = sum of the phase durations. */
+        const _DEMO_PRESETS = {
+            street:   { label: 'Street',   top: 165, idle1: 3,   accel: 16, cruise: 7,  decel: 10, idle2: 4,   curve: 2.1, thr: 78 },
+            spirited: { label: 'Spirited', top: 235, idle1: 2.5, accel: 19, cruise: 4,  decel: 9,  idle2: 3.5, curve: 1.8, thr: 92 },
+            drag:     { label: 'Drag run', top: 255, idle1: 2,   accel: 13, cruise: 1,  decel: 5,  idle2: 2,   curve: 1.5, thr: 100 },
+            cruise:   { label: 'Cruise',   top: 110, idle1: 1.5, accel: 10, cruise: 22, decel: 6,  idle2: 2,   curve: 2.5, thr: 55 },
+        };
+        let _demoPreset = 'spirited';
+        const _demoCfg = () => _DEMO_PRESETS[_demoPreset] || _DEMO_PRESETS.spirited;
+        const _demoCycleLen = () => { const p = _demoCfg(); return p.idle1 + p.accel + p.cruise + p.decel + p.idle2; };
+        function setDemoPreset(name) { if (_DEMO_PRESETS[name]) { _demoPreset = name; if (_simActive) _simStartTime = performance.now(); } }
         function _demoGearForSpeed(s) {
             if (s < 45) return 1; if (s < 84) return 2; if (s < 130) return 3;
             if (s < 182) return 4; if (s < 230) return 5; return 6;
         }
         function _demoState(t) {
-            const idle1 = 2.5, accel = 19, cruise = 4, decel = 9; /* +idle2 = 3.5 → 38 */
+            const p = _demoCfg();
             let speed, throttle, braking = false;
-            if (t < idle1) { speed = 0; throttle = 0; }
-            else if (t < idle1 + accel) {
-                const a = (t - idle1) / accel;
-                speed = _DEMO_TOP_SPEED * (1 - Math.pow(1 - a, 1.8));
-                throttle = 90 - a * 8;
-            } else if (t < idle1 + accel + cruise) {
-                const a = (t - idle1 - accel) / cruise;
-                speed = _DEMO_TOP_SPEED * (0.985 + 0.015 * Math.sin(a * Math.PI * 2));
-                throttle = 28 + 6 * Math.sin(a * Math.PI * 2);
-            } else if (t < idle1 + accel + cruise + decel) {
-                const a = (t - idle1 - accel - cruise) / decel;
-                speed = _DEMO_TOP_SPEED * Math.pow(1 - a, 1.6);
+            if (t < p.idle1) { speed = 0; throttle = 0; }
+            else if (t < p.idle1 + p.accel) {
+                const a = (t - p.idle1) / p.accel;
+                speed = p.top * (1 - Math.pow(1 - a, p.curve));
+                throttle = p.thr - a * 8;
+            } else if (t < p.idle1 + p.accel + p.cruise) {
+                const a = (t - p.idle1 - p.accel) / p.cruise;
+                speed = p.top * (0.985 + 0.015 * Math.sin(a * Math.PI * 2));
+                throttle = p.thr * 0.3 + 6 * Math.sin(a * Math.PI * 2);
+            } else if (t < p.idle1 + p.accel + p.cruise + p.decel) {
+                const a = (t - p.idle1 - p.accel - p.cruise) / p.decel;
+                speed = p.top * Math.pow(1 - a, 1.6);
                 throttle = 0; braking = true;
             } else { speed = 0; throttle = 0; }
             const gear = speed < 1 ? 1 : _demoGearForSpeed(speed);
@@ -8540,7 +8557,7 @@
             if (n.includes('INTAKEAIR') || n.includes('IAT') || (n.includes('AIR') && n.includes('TEMP'))) return Math.round(30 + 16 * st.load + wob(1));
             if (n.includes('BATT') || n.includes('VOLT')) return +(13.9 + (st.rpm > 1200 ? 0.35 : 0) + wob(0.05)).toFixed(1);
             if (n.includes('EGT') || (n.includes('EXHAUST') && n.includes('TEMP'))) return Math.round(380 + st.load * 480 + wob(8));
-            if (n.includes('FUELLEVEL') || (n.includes('FUEL') && n.includes('LEVEL'))) return Math.round(74 - (t % _DEMO_CYCLE) / _DEMO_CYCLE * 2);
+            if (n.includes('FUELLEVEL') || (n.includes('FUEL') && n.includes('LEVEL'))) { const cl = _demoCycleLen(); return Math.round(74 - (t % cl) / cl * 2); }
             if ((n.includes('LAMBDA') || n === 'AFR') && !n.includes('CORR')) return n.includes('AFR') ? +(st.load > 0.5 ? 12.4 : 14.4).toFixed(1) : +(st.load > 0.5 ? 0.84 : (st.throttle < 2 ? 1.0 : 0.95)).toFixed(2);
             if (n.includes('MAF')) return Math.round(3 + st.load * 320);
             return null;
@@ -8551,7 +8568,7 @@
             const elapsed = timestamp - _simStartTime;
             if (_demoMode) {
                 const tSec = elapsed / 1000;
-                const st = _demoState(tSec % _DEMO_CYCLE);
+                const st = _demoState(tSec % _demoCycleLen());
                 const warm = Math.min(1, tSec / 40);
                 for (const [name, cfg] of Object.entries(_simConfigs)) {
                     let v = _demoValueFor(name, st, warm, tSec);
@@ -8571,12 +8588,14 @@
             _simActive = !_simActive;
             const btn = document.getElementById('pillSimulate');
             const gear = document.getElementById('simSettingsBtn');
+            const presetSel = document.getElementById('demoPresetSel');
             const mBtn = document.getElementById('mobileSimBtn');
             if (_simActive) {
                 _simEnsureConfigs();
                 _simStartTime = performance.now();
                 if (btn) { btn.style.borderColor = '#4ade80'; btn.style.color = '#4ade80'; }
                 if (gear) gear.style.display = '';
+                if (presetSel) presetSel.style.display = '';
                 if (mBtn) mBtn.setAttribute('aria-pressed', 'true');
                 _simRafId = requestAnimationFrame(_simLoop);
             } else {
@@ -8584,6 +8603,7 @@
                 _simRafId = null;
                 if (btn) { btn.style.borderColor = ''; btn.style.color = ''; }
                 if (gear) gear.style.display = 'none';
+                if (presetSel) presetSel.style.display = 'none';
                 if (mBtn) mBtn.setAttribute('aria-pressed', 'false');
                 /* Reset all signals to 0 */
                 for (const name of Object.keys(_simConfigs)) {
