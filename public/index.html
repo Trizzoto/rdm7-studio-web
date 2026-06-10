@@ -1137,6 +1137,43 @@
             justify-content: center;
         }
 
+        /* ── Channels modal (list + detail) ── */
+        #channelsModal2 { display:none; position:fixed; inset:0; z-index:9999; background:rgba(10,10,10,0.8); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
+        .ch2-shell { background:var(--bg, #1a1a1a); border:1px solid var(--border); border-radius:var(--radius-lg, 12px); width:760px; max-width:96vw; height:560px; max-height:92vh; display:flex; flex-direction:column; box-shadow:var(--shadow-md); overflow:hidden; }
+        .ch2-top { display:flex; align-items:center; gap:10px; padding:13px 18px; border-bottom:1px solid var(--border); }
+        .ch2-title { font-weight:600; font-size:15px; color:var(--text); }
+        .ch2-sub { font-size:11px; color:var(--text-muted); }
+        .ch2-body { flex:1; display:grid; grid-template-columns:240px 1fr; min-height:0; }
+        .ch2-listpane { display:flex; flex-direction:column; border-right:1px solid var(--border); min-height:0; }
+        .ch2-search { margin:10px; padding:7px 10px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:12px; }
+        .ch2-list { flex:1; overflow-y:auto; min-height:0; }
+        .ch2-row { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; border-left:2px solid transparent; }
+        .ch2-row:hover { background:rgba(255,255,255,0.04); }
+        .ch2-row.sel { background:rgba(45,140,235,0.12); border-left-color:var(--accent); }
+        .ch2-srcdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .ch2-rowname { flex:1; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .ch2-used { color:hsl(120,80%,55%); font-size:9px; }
+        .ch2-addbtn { margin:10px; font-size:11px; }
+        .ch2-detail { padding:16px 18px; overflow-y:auto; min-height:0; }
+        .ch2-empty { color:var(--text-muted); font-size:12px; text-align:center; padding:40px 12px; line-height:1.5; }
+        .ch2-dhead { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+        .ch2-srcbadge { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:3px 7px; border-radius:4px; border:1px solid; white-space:nowrap; }
+        .ch2-dname { flex:1; font-size:15px; font-weight:600; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); padding:6px 10px; }
+        .ch2-dgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+        .ch2-dsec { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin:16px 0 8px; display:flex; align-items:center; gap:6px; }
+        .ch2-dhint { font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-ghost, #777); }
+        .ch2-f { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--text-muted); }
+        .ch2-f input, .ch2-f select { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); padding:6px 8px; font-size:12px; font-family:inherit; }
+        .ch2-f input[type=checkbox] { width:auto; align-self:flex-start; margin-top:4px; transform:scale(1.2); }
+        .ch2-dnote { font-size:11px; color:var(--text-muted); background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; }
+        .ch2-bar { position:relative; height:8px; margin-top:10px; border-radius:4px; background:rgba(255,255,255,0.06); }
+        .ch2-bar-zone { position:absolute; top:0; bottom:0; border-radius:4px; }
+        .ch2-bar-mk { position:absolute; top:-2px; bottom:-2px; width:2px; }
+        .ch2-bar-lbl { display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:3px; }
+        .ch2-dfoot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:18px; padding-top:12px; border-top:1px solid var(--border); }
+        .ch2-dused { font-size:11px; color:var(--text-muted); }
+        @media (max-width:640px) { .ch2-body { grid-template-columns:1fr; } .ch2-listpane { max-height:38%; } .ch2-shell { height:88vh; } }
+
         .modal-content {
             background: var(--panel-elevated);
             border: 1px solid var(--border);
@@ -2796,6 +2833,27 @@
         </div>
     </div>
 
+    <!-- Channels Modal (dash-style: channel list + detail editor) -->
+    <div id="channelsModal2" onclick="closeChannels()">
+        <div class="ch2-shell" onclick="event.stopPropagation()">
+            <div class="ch2-top">
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span class="ch2-title">Channels</span>
+                    <span class="ch2-sub">CAN decode, units &amp; warn thresholds &mdash; the same model as your dash</span>
+                </div>
+                <button class="close-btn" onclick="closeChannels()" style="margin-left:auto; font-size:18px;">&times;</button>
+            </div>
+            <div class="ch2-body">
+                <div class="ch2-listpane">
+                    <input id="ch2Search" class="ch2-search" type="search" placeholder="Search channels" oninput="_renderChList()">
+                    <div id="ch2List" class="ch2-list"></div>
+                    <button class="btn btn-secondary ch2-addbtn" onclick="_chAddFromPreset()">+ Add from ECU preset</button>
+                </div>
+                <div id="ch2Detail" class="ch2-detail"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="helpModal" onclick="this.style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()">
             <h2>Keyboard Shortcuts</h2>
@@ -2951,6 +3009,7 @@
                     style="font-size:9px; padding:2px 6px; display:none;" title="Scan for RDM-7 devices on network">Scan</button>
             </div>
             <div class="header-divider"></div>
+            <button class="btn btn-secondary" id="pillChannels" onclick="openChannels()" title="Configure data channels — decode, units &amp; warn thresholds, like your dash" style="font-size:10px;padding:4px 10px;">Channels</button>
             <button class="btn btn-secondary" id="pillSimulate" onclick="toggleSimulation()" title="Run demo drive (live preview)" style="font-size:10px;padding:4px 10px;">Demo</button>
             <select id="demoPresetSel" onchange="setDemoPreset(this.value)" title="Demo drive style" style="display:none;font-size:10px;padding:3px 4px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
                 <option value="street">Street</option>
@@ -8352,6 +8411,156 @@
             updateInspector();
             updateStatus(sigName ? `Bound signal "${sigName}"` : 'Signal unbound');
         }
+
+        /* ═══ Channels ════════════════════════════════════════════════════
+         * A dash-style view of the layout's data sources. Each channel is a
+         * signal + CAN decode + units/decimals + range + warn thresholds — the
+         * same model the device keeps in channels.json. Backed by
+         * currentLayout.signals[]; the threshold/source fields persist there and
+         * travel in the exported .rdm so "build in studio → port to dash"
+         * carries the full config, not just the visuals. */
+        let _chSel = null;
+        const _CH_SRC_COL = { CAN: '#3b82f6', OBD2: '#a855f7', Internal: '#64748b' };
+        function _chSourceOf(s) {
+            if (s.source) return s.source;
+            if (/(^|_)(OBD|PID)/i.test(s.name || '')) return 'OBD2';
+            if (s.can_id == null || s.can_id === 0) return 'Internal';
+            return 'CAN';
+        }
+        function _chFind(name) { return (currentLayout.signals || []).find(s => s.name === name); }
+        function _chBound(name) { return (currentLayout.widgets || []).some(w => (w.signal || (w.config && w.config.signal_name)) === name); }
+        function _chBoundList(name) { return (currentLayout.widgets || []).filter(w => (w.signal || (w.config && w.config.signal_name)) === name).map(w => w.id).join(', '); }
+        function openChannels() {
+            if (!currentLayout.signals) currentLayout.signals = [];
+            if (!_chSel || !_chFind(_chSel)) _chSel = currentLayout.signals[0] ? currentLayout.signals[0].name : null;
+            document.getElementById('channelsModal2').style.display = 'flex';
+            _renderChList(); _renderChDetail();
+        }
+        function closeChannels() { document.getElementById('channelsModal2').style.display = 'none'; }
+        function _renderChList() {
+            const list = document.getElementById('ch2List'); if (!list) return;
+            const f = (document.getElementById('ch2Search').value || '').toLowerCase();
+            const sigs = (currentLayout.signals || []).filter(s => !f || s.name.toLowerCase().includes(f));
+            if (!sigs.length) { list.innerHTML = '<div class="ch2-empty">No channels.<br>Add from an ECU preset below.</div>'; return; }
+            list.innerHTML = sigs.map(s => {
+                const src = _chSourceOf(s), col = _CH_SRC_COL[src] || '#64748b';
+                return `<div class="ch2-row${s.name === _chSel ? ' sel' : ''}" onclick="_chPick('${s.name.replace(/'/g, "\\'")}')">
+                    <span class="ch2-srcdot" style="background:${col}" title="${src}"></span>
+                    <span class="ch2-rowname">${s.name}</span>
+                    ${_chBound(s.name) ? '<span class="ch2-used" title="Used by a widget">&#9679;</span>' : ''}
+                </div>`;
+            }).join('');
+        }
+        function _chPick(name) { _chSel = name; _renderChList(); _renderChDetail(); }
+        function _chF(label, html) { return `<label class="ch2-f"><span>${label}</span>${html}</label>`; }
+        function _chThreshBar(s) {
+            const mn = Number(s.min ?? 0), mx = Number(s.max ?? 100);
+            if (!(mx > mn)) return '';
+            const pct = (v) => Math.max(0, Math.min(100, (v - mn) / (mx - mn) * 100));
+            const lo = s.low_warn != null ? pct(s.low_warn) : null;
+            const hi = s.high_warn != null ? pct(s.high_warn) : null;
+            let b = '<div class="ch2-bar">';
+            if (lo != null) b += `<div class="ch2-bar-zone" style="left:0;width:${lo}%;background:#3b82f633"></div>`;
+            if (hi != null) b += `<div class="ch2-bar-zone" style="left:${hi}%;width:${100 - hi}%;background:#ef444433"></div>`;
+            if (lo != null) b += `<div class="ch2-bar-mk" style="left:${lo}%;background:#3b82f6"></div>`;
+            if (hi != null) b += `<div class="ch2-bar-mk" style="left:${hi}%;background:#ef4444"></div>`;
+            return b + `</div><div class="ch2-bar-lbl"><span>${mn}</span><span>${mx}</span></div>`;
+        }
+        function _renderChDetail() {
+            const d = document.getElementById('ch2Detail'); if (!d) return;
+            const s = _chFind(_chSel);
+            if (!s) { d.innerHTML = '<div class="ch2-empty">Select a channel</div>'; return; }
+            const src = _chSourceOf(s), col = _CH_SRC_COL[src] || '#64748b', isCan = src === 'CAN';
+            const hexId = '0x' + Number(s.can_id || 0).toString(16).toUpperCase().padStart(3, '0');
+            const numI = (k, v) => `<input type="number" step="any" value="${v ?? ''}" onchange="_chSet('${k}', this.value, true)">`;
+            d.innerHTML =
+              `<div class="ch2-dhead">
+                 <span class="ch2-srcbadge" style="color:${col};border-color:${col}66;background:${col}1a">${src}</span>
+                 <input class="ch2-dname" value="${s.name}" onchange="_chRename(this.value)" spellcheck="false">
+               </div>
+               <div class="ch2-dgrid">
+                 ${_chF('Unit', `<input value="${s.unit || ''}" onchange="_chSet('unit', this.value)" spellcheck="false">`)}
+                 ${_chF('Decimals', `<input type="number" min="0" max="4" value="${s.decimals ?? 0}" onchange="_chSet('decimals', this.value, true, true)">`)}
+                 ${_chF('Min', numI('min', s.min))}
+                 ${_chF('Max', numI('max', s.max))}
+               </div>
+               ${isCan ? `<div class="ch2-dsec">CAN decode</div>
+               <div class="ch2-dgrid">
+                 ${_chF('CAN ID', `<input value="${hexId}" onchange="_chSetHex(this.value)" spellcheck="false">`)}
+                 ${_chF('Bit start', `<input type="number" min="0" max="63" value="${s.bit_start ?? 0}" onchange="_chSet('bit_start', this.value, true, true)">`)}
+                 ${_chF('Length', `<input type="number" min="1" max="32" value="${s.bit_length ?? 16}" onchange="_chSet('bit_length', this.value, true, true)">`)}
+                 ${_chF('Scale', numI('scale', s.scale))}
+                 ${_chF('Offset', numI('offset', s.offset))}
+                 ${_chF('Endian', `<select onchange="_chSet('is_little_endian', this.value === 'le')"><option value="be" ${!s.is_little_endian ? 'selected' : ''}>Big (Motorola)</option><option value="le" ${s.is_little_endian ? 'selected' : ''}>Little (Intel)</option></select>`)}
+                 ${_chF('Signed', `<input type="checkbox" ${s.is_signed ? 'checked' : ''} onchange="_chSet('is_signed', this.checked)">`)}
+               </div>` : `<div class="ch2-dnote">${src === 'OBD2' ? 'OBD2 PID — decoded by the OBD2 layer on the dash.' : 'Internal / calculated channel — no CAN decode.'}</div>`}
+               <div class="ch2-dsec">Warn thresholds <span class="ch2-dhint">blank = off</span></div>
+               <div class="ch2-dgrid">
+                 ${_chF('Low warn', `<input type="number" step="any" placeholder="off" value="${s.low_warn ?? ''}" onchange="_chSetThresh('low_warn', this.value)">`)}
+                 ${_chF('High warn', `<input type="number" step="any" placeholder="off" value="${s.high_warn ?? ''}" onchange="_chSetThresh('high_warn', this.value)">`)}
+               </div>
+               ${_chThreshBar(s)}
+               <div class="ch2-dfoot">
+                 <span class="ch2-dused">${_chBound(s.name) ? 'Used by ' + _chBoundList(s.name) : 'Not bound to a widget'}</span>
+                 <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="_chDelete()">Delete</button>
+               </div>`;
+        }
+        function _chSet(key, val, isNum, isInt) {
+            const s = _chFind(_chSel); if (!s) return;
+            if (isNum) { let n = parseFloat(val); if (isNaN(n)) return; if (isInt) n = Math.round(n); s[key] = n; }
+            else s[key] = val;
+            _chAfter();
+        }
+        function _chSetHex(val) {
+            const n = parseInt(String(val).replace(/^0x/i, ''), 16);
+            const s = _chFind(_chSel);
+            if (s && !isNaN(n)) { s.can_id = n; _renderChList(); _chAfter(); }
+        }
+        function _chSetThresh(key, val) {
+            const s = _chFind(_chSel); if (!s) return;
+            const n = parseFloat(val);
+            if (val === '' || isNaN(n)) delete s[key]; else s[key] = n;
+            _chSyncToWidgets(s); _renderChDetail(); _chAfter();
+        }
+        function _chRename(newName) {
+            newName = (newName || '').trim(); const s = _chFind(_chSel); if (!s) return;
+            if (!newName || newName === s.name) { _renderChDetail(); return; }
+            if (_chFind(newName)) { if (typeof updateStatus === 'function') updateStatus('Channel name already exists', true); _renderChDetail(); return; }
+            const old = s.name;
+            (currentLayout.widgets || []).forEach(w => {
+                if (w.signal === old) w.signal = newName;
+                if (w.config && w.config.signal_name === old) w.config.signal_name = newName;
+            });
+            s.name = newName; _chSel = newName;
+            _renderChList(); _renderChDetail(); _chAfter();
+        }
+        function _chDelete() {
+            const s = _chFind(_chSel); if (!s) return;
+            if (_chBound(s.name) && !confirm(`"${s.name}" is used by ${_chBoundList(s.name)}. Delete anyway?`)) return;
+            currentLayout.signals = (currentLayout.signals || []).filter(x => x !== s);
+            _chSel = currentLayout.signals[0] ? currentLayout.signals[0].name : null;
+            _renderChList(); _renderChDetail(); _chAfter();
+        }
+        /* Mirror channel thresholds into bound bar/arc widgets so the live
+         * preview reflects them (the device keeps thresholds channel-owned). */
+        function _chSyncToWidgets(s) {
+            const map = { bar: ['bar_low', 'bar_high'], arc: ['arc_low', 'arc_high'] };
+            (currentLayout.widgets || []).forEach(w => {
+                if ((w.signal || (w.config && w.config.signal_name)) !== s.name) return;
+                const spec = map[w.type]; if (!spec || !w.config) return;
+                if (s.low_warn != null) w.config[spec[0]] = s.low_warn;
+                if (s.high_warn != null) w.config[spec[1]] = s.high_warn;
+                if (w.type === 'bar') w.config.bar_alerts_enabled = true;
+                if (w.type === 'arc') w.config.arc_alerts_enabled = true;
+            });
+        }
+        function _chAfter() {
+            if (typeof renderSignals === 'function') renderSignals();
+            if (typeof renderEditor === 'function') renderEditor();
+            if (typeof scheduleWasmPreview === 'function') scheduleWasmPreview();
+            if (typeof pushHistory === 'function') pushHistory();
+        }
+        function _chAddFromPreset() { closeChannels(); if (typeof openSignalManager === 'function') openSignalManager(); }
 
         /* ── Signal Simulator ─────────────────────────────────────── */
         let _simActive = false;
