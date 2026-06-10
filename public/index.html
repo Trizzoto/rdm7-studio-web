@@ -1172,6 +1172,10 @@
         .ch2-bar-lbl { display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:3px; }
         .ch2-dfoot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:18px; padding-top:12px; border-top:1px solid var(--border); }
         .ch2-dused { font-size:11px; color:var(--text-muted); }
+        .ch2-test { display:flex; align-items:center; gap:10px; }
+        .ch2-test input[type=range] { flex:1; accent-color:var(--accent); }
+        .ch2-testval { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text); min-width:46px; text-align:right; }
+        .ch2-side-th { font-size:9px; color:var(--text-muted); font-family:'JetBrains Mono', monospace; white-space:nowrap; }
         @media (max-width:640px) { .ch2-body { grid-template-columns:1fr; } .ch2-listpane { max-height:38%; } .ch2-shell { height:88vh; } }
 
         .modal-content {
@@ -3094,6 +3098,7 @@
             <div class="right-sidebar-tabs">
                 <button class="right-sidebar-tab active" onclick="switchRightTab('properties')">Properties</button>
                 <button class="right-sidebar-tab" onclick="switchRightTab('layers')">Layers</button>
+                <button class="right-sidebar-tab" onclick="switchRightTab('channels')">Channels</button>
             </div>
             <div class="right-tab-content active" id="rightTabProperties">
             <div id="inspectorContent" class="inspector-group" style="flex:1; overflow-y:auto; min-height:0;">
@@ -3105,6 +3110,11 @@
             </div>
             <div class="right-tab-content" id="rightTabLayers" style="overflow:hidden;">
                 <div id="layerTree" style="flex:1; overflow-y:auto; min-height:0;"></div>
+            </div>
+            <div class="right-tab-content" id="rightTabChannels" style="overflow:hidden;">
+                <div style="padding:8px 8px 0;"><input id="chSideSearch" class="ch2-search" style="margin:0; width:100%; box-sizing:border-box;" type="search" placeholder="Search channels" oninput="_renderChSidebar()"></div>
+                <div id="chSideList" style="flex:1; overflow-y:auto; min-height:0; margin-top:8px;"></div>
+                <button class="btn btn-secondary" style="margin:8px; font-size:11px;" onclick="openChannels()">Open Channels editor</button>
             </div>
         </aside>
     </div>
@@ -4256,6 +4266,7 @@
                 t.classList.toggle('active', t.textContent.toLowerCase() === tabName));
             right.querySelectorAll('.right-tab-content').forEach(c =>
                 c.classList.toggle('active', c.id === 'rightTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)));
+            if (tabName === 'channels' && typeof _renderChSidebar === 'function') _renderChSidebar();
         }
 
         /* Collapse / expand the left (Widgets) sidebar to a thin strip. */
@@ -8430,6 +8441,18 @@
         function _chFind(name) { return (currentLayout.signals || []).find(s => s.name === name); }
         function _chBound(name) { return (currentLayout.widgets || []).some(w => (w.signal || (w.config && w.config.signal_name)) === name); }
         function _chBoundList(name) { return (currentLayout.widgets || []).filter(w => (w.signal || (w.config && w.config.signal_name)) === name).map(w => w.id).join(', '); }
+        /* Per-channel manual test value (injected live so widgets respond). */
+        const _chTestVals = {};
+        const _chMn = (s) => Number(s.min ?? 0);
+        const _chMx = (s) => { const mx = Number(s.max ?? 100); return mx > _chMn(s) ? mx : _chMn(s) + 100; };
+        const _chStep = (s) => s.decimals ? +Math.pow(10, -s.decimals).toFixed(s.decimals) : ((_chMx(s) - _chMn(s)) > 40 ? 1 : 0.1);
+        const _chCur = (s) => _chTestVals[s.name] != null ? _chTestVals[s.name] : +(((_chMn(s) + _chMx(s)) / 2)).toFixed(s.decimals || 0);
+        function _chTest(val) {
+            const v = parseFloat(val); if (isNaN(v)) return;
+            _chTestVals[_chSel] = v;
+            const rd = document.getElementById('ch2TestVal'); if (rd) rd.textContent = v;
+            if (typeof injectWasmSignal === 'function') injectWasmSignal(_chSel, v);
+        }
         function openChannels() {
             if (!currentLayout.signals) currentLayout.signals = [];
             if (!_chSel || !_chFind(_chSel)) _chSel = currentLayout.signals[0] ? currentLayout.signals[0].name : null;
@@ -8452,6 +8475,23 @@
             }).join('');
         }
         function _chPick(name) { _chSel = name; _renderChList(); _renderChDetail(); }
+        /* Compact channel list for the right-sidebar Channels tab. */
+        function _renderChSidebar() {
+            const list = document.getElementById('chSideList'); if (!list) return;
+            const se = document.getElementById('chSideSearch');
+            const f = (se ? se.value : '').toLowerCase();
+            const sigs = (currentLayout.signals || []).filter(s => !f || s.name.toLowerCase().includes(f));
+            if (!sigs.length) { list.innerHTML = '<div class="ch2-empty" style="padding:24px 10px;">No channels yet.<br>Open the editor to add some.</div>'; return; }
+            list.innerHTML = sigs.map(s => {
+                const src = _chSourceOf(s), col = _CH_SRC_COL[src] || '#64748b';
+                const th = (s.low_warn != null || s.high_warn != null)
+                    ? `<span class="ch2-side-th" title="Warn thresholds set">${s.low_warn != null ? '▼' + s.low_warn : ''}${s.high_warn != null ? ' ▲' + s.high_warn : ''}</span>` : '';
+                return `<div class="ch2-row" onclick="_chPick('${s.name.replace(/'/g, "\\'")}'); openChannels();">
+                    <span class="ch2-srcdot" style="background:${col}" title="${src}"></span>
+                    <span class="ch2-rowname">${s.name}</span>${th}
+                </div>`;
+            }).join('');
+        }
         function _chF(label, html) { return `<label class="ch2-f"><span>${label}</span>${html}</label>`; }
         function _chThreshBar(s) {
             const mn = Number(s.min ?? 0), mx = Number(s.max ?? 100);
@@ -8500,6 +8540,11 @@
                  ${_chF('High warn', `<input type="number" step="any" placeholder="off" value="${s.high_warn ?? ''}" onchange="_chSetThresh('high_warn', this.value)">`)}
                </div>
                ${_chThreshBar(s)}
+               <div class="ch2-dsec">Test value <span class="ch2-dhint">drag to drive this channel live</span></div>
+               <div class="ch2-test">
+                 <input type="range" min="${_chMn(s)}" max="${_chMx(s)}" step="${_chStep(s)}" value="${_chCur(s)}" oninput="_chTest(this.value)">
+                 <span class="ch2-testval" id="ch2TestVal">${_chCur(s)}</span>
+               </div>
                <div class="ch2-dfoot">
                  <span class="ch2-dused">${_chBound(s.name) ? 'Used by ' + _chBoundList(s.name) : 'Not bound to a widget'}</span>
                  <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="_chDelete()">Delete</button>
@@ -8555,6 +8600,7 @@
             });
         }
         function _chAfter() {
+            if (typeof _renderChSidebar === 'function') _renderChSidebar();
             if (typeof renderSignals === 'function') renderSignals();
             if (typeof renderEditor === 'function') renderEditor();
             if (typeof scheduleWasmPreview === 'function') scheduleWasmPreview();
