@@ -2951,7 +2951,7 @@
                     style="font-size:9px; padding:2px 6px; display:none;" title="Scan for RDM-7 devices on network">Scan</button>
             </div>
             <div class="header-divider"></div>
-            <button class="btn btn-secondary" id="pillSimulate" onclick="toggleSimulation()" title="Simulate signals" style="font-size:10px;padding:4px 10px;">Sim</button>
+            <button class="btn btn-secondary" id="pillSimulate" onclick="toggleSimulation()" title="Run demo drive (live preview)" style="font-size:10px;padding:4px 10px;">Demo</button>
             <button class="btn btn-secondary btn-icon" id="simSettingsBtn" onclick="openSimSettings()" title="Simulation settings" style="display:none;font-size:9px;padding:2px 5px;">&#9881;</button>
             <div class="header-divider"></div>
             <button class="btn btn-secondary btn-icon" onclick="resetView()" title="Reset view">&#8634;</button>
@@ -8474,12 +8474,95 @@
                 : cfg.min + range * (2 - doubleFrac);
         }
 
+        /* ── Realistic "Demo" drive model ─────────────────────────────
+         * One coherent drive cycle drives every recognised channel, so values
+         * stay physically consistent instead of each sweeping min↔max on its
+         * own. Speed is the master curve; gear steps off speed; RPM is derived
+         * from speed×gear ratio — which naturally produces the "revs climb to
+         * the shift point then drop while speed keeps rising" feel. The car
+         * launches, pulls through the gears, cruises, brakes to a stop, pauses,
+         * and loops. Temps warm up once and hover; boost/lambda/EGT track load.
+         * Unrecognised signals fall back to the per-signal simulator. */
+        let _demoMode = true;
+        const _DEMO_CYCLE = 38;          /* seconds per loop */
+        const _DEMO_TOP_SPEED = 235;     /* km/h */
+        const _DEMO_IDLE_RPM = 820;
+        const _DEMO_REDLINE = 7200;
+        /* km/h gained per 1000 rpm in each gear (1..6) — tuned so upshifts land
+         * near ~6300 rpm and drop to ~3400 in the next gear. */
+        const _DEMO_GEAR_RATIO = [0, 7, 13, 20, 28, 38, 50];
+        function _demoGearForSpeed(s) {
+            if (s < 45) return 1; if (s < 84) return 2; if (s < 130) return 3;
+            if (s < 182) return 4; if (s < 230) return 5; return 6;
+        }
+        function _demoState(t) {
+            const idle1 = 2.5, accel = 19, cruise = 4, decel = 9; /* +idle2 = 3.5 → 38 */
+            let speed, throttle, braking = false;
+            if (t < idle1) { speed = 0; throttle = 0; }
+            else if (t < idle1 + accel) {
+                const a = (t - idle1) / accel;
+                speed = _DEMO_TOP_SPEED * (1 - Math.pow(1 - a, 1.8));
+                throttle = 90 - a * 8;
+            } else if (t < idle1 + accel + cruise) {
+                const a = (t - idle1 - accel) / cruise;
+                speed = _DEMO_TOP_SPEED * (0.985 + 0.015 * Math.sin(a * Math.PI * 2));
+                throttle = 28 + 6 * Math.sin(a * Math.PI * 2);
+            } else if (t < idle1 + accel + cruise + decel) {
+                const a = (t - idle1 - accel - cruise) / decel;
+                speed = _DEMO_TOP_SPEED * Math.pow(1 - a, 1.6);
+                throttle = 0; braking = true;
+            } else { speed = 0; throttle = 0; }
+            const gear = speed < 1 ? 1 : _demoGearForSpeed(speed);
+            let rpm;
+            if (speed < 1) rpm = _DEMO_IDLE_RPM + throttle * 28;
+            else rpm = Math.max(_DEMO_IDLE_RPM, Math.min(_DEMO_REDLINE, (speed / _DEMO_GEAR_RATIO[gear]) * 1000));
+            const load = Math.max(0, Math.min(1, (throttle / 100) * 0.6 + (rpm / _DEMO_REDLINE) * 0.4));
+            return { speed, gear, rpm, throttle, load, braking };
+        }
+        const _demoNorm = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+        /* Map a signal/channel name → realistic value from the drive state.
+         * warm = 0→1 engine warm-up; returns null if unrecognised (→ fallback). */
+        function _demoValueFor(name, st, warm, t) {
+            const n = _demoNorm(name);
+            const wob = (a) => a * Math.sin(t * 1.6 + n.length);
+            /* targets + pressures BEFORE generic temp/lambda matches */
+            if ((/LAMBDA|AFR/.test(n)) && n.includes('TARGET')) return /AFR/.test(n) ? 12.9 : 0.88;
+            if (n.includes('ENGINESPEED') || n.includes('RPM')) return Math.round(st.rpm);
+            if (n.includes('GEAR')) return st.gear;
+            if (n.includes('VEHICLESPEED') || n.includes('VSS') || (n.includes('SPEED') && !n.includes('FAN') && !n.includes('WIND') && !n.includes('ENGINE'))) return Math.round(st.speed);
+            if (n.includes('THROTTLE') || n.includes('TPS')) return Math.round(st.throttle);
+            if (n.includes('OIL') && n.includes('PRESS')) return +(1.0 + st.rpm / _DEMO_REDLINE * 4.5 + wob(0.08)).toFixed(1);
+            if (n.includes('FUEL') && n.includes('PRESS')) return Math.round(340 + st.load * 70 + wob(4));
+            if (n.includes('COOLANT') && n.includes('PRESS')) return +(1.1 + st.load * 0.7 + wob(0.05)).toFixed(1);
+            if (n.includes('MAP') || n.includes('BOOST') || n.includes('MANIFOLD')) return Math.round(30 + st.load * 185 + wob(3));
+            if (n.includes('OIL') && n.includes('TEMP')) return Math.round(48 + 50 * warm + wob(1.5));
+            if ((n.includes('COOLANT') || n.includes('ECT') || n.includes('WATER') || (n.includes('ENGINE') && n.includes('TEMP'))) && !n.includes('PRESS')) return Math.round(42 + 50 * warm + wob(1.2));
+            if (n.includes('INTAKEAIR') || n.includes('IAT') || (n.includes('AIR') && n.includes('TEMP'))) return Math.round(30 + 16 * st.load + wob(1));
+            if (n.includes('BATT') || n.includes('VOLT')) return +(13.9 + (st.rpm > 1200 ? 0.35 : 0) + wob(0.05)).toFixed(1);
+            if (n.includes('EGT') || (n.includes('EXHAUST') && n.includes('TEMP'))) return Math.round(380 + st.load * 480 + wob(8));
+            if (n.includes('FUELLEVEL') || (n.includes('FUEL') && n.includes('LEVEL'))) return Math.round(74 - (t % _DEMO_CYCLE) / _DEMO_CYCLE * 2);
+            if ((n.includes('LAMBDA') || n === 'AFR') && !n.includes('CORR')) return n.includes('AFR') ? +(st.load > 0.5 ? 12.4 : 14.4).toFixed(1) : +(st.load > 0.5 ? 0.84 : (st.throttle < 2 ? 1.0 : 0.95)).toFixed(2);
+            if (n.includes('MAF')) return Math.round(3 + st.load * 320);
+            return null;
+        }
+
         function _simLoop(timestamp) {
             if (!_simActive) return;
             const elapsed = timestamp - _simStartTime;
-            for (const [name, cfg] of Object.entries(_simConfigs)) {
-                const val = _simCalcValue(cfg, elapsed);
-                if (val !== null) injectWasmSignal(name, val);
+            if (_demoMode) {
+                const tSec = elapsed / 1000;
+                const st = _demoState(tSec % _DEMO_CYCLE);
+                const warm = Math.min(1, tSec / 40);
+                for (const [name, cfg] of Object.entries(_simConfigs)) {
+                    let v = _demoValueFor(name, st, warm, tSec);
+                    if (v === null) v = _simCalcValue(cfg, elapsed);
+                    if (v !== null) injectWasmSignal(name, v);
+                }
+            } else {
+                for (const [name, cfg] of Object.entries(_simConfigs)) {
+                    const val = _simCalcValue(cfg, elapsed);
+                    if (val !== null) injectWasmSignal(name, val);
+                }
             }
             _simRafId = requestAnimationFrame(_simLoop);
         }
@@ -13561,9 +13644,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="8.01"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
     <span>Properties</span>
   </button>
-  <button data-action="sim" id="mobileSimBtn" aria-label="Simulate" aria-pressed="false">
+  <button data-action="sim" id="mobileSimBtn" aria-label="Demo drive" aria-pressed="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-    <span>Sim</span>
+    <span>Demo</span>
   </button>
   <button data-action="layers" aria-label="Layers">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
