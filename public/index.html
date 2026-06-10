@@ -4050,7 +4050,28 @@
         }
 
         function buildLayoutJson() {
-            return JSON.stringify(buildFirmwarePayload());
+            const payload = buildFirmwarePayload();
+            /* Preview-only signal registration. v14 layouts bind widgets to
+             * channel-owned signals (RPM, GEAR, COOLANT_TEMP, …) whose decode
+             * lives on the device, NOT in the layout's signals[]. The WASM
+             * preview only knows the signals it's handed, so those widgets would
+             * never bind (and the simulator couldn't drive them) — the gauges
+             * render empty. Register a synthetic signal for every widget-
+             * referenced name not already present so the preview can bind +
+             * animate them. This augments ONLY the JSON fed to the WASM; the
+             * saved/exported layout (buildFirmwarePayload) is untouched. */
+            const have = new Set((payload.signals || []).map(s => s.name));
+            const synth = [];
+            (payload.widgets || []).forEach(w => {
+                const sn = w.config && w.config.signal_name;
+                if (sn && !have.has(sn)) {
+                    have.add(sn);
+                    synth.push({ name: sn, can_id: 0, bit_start: 0, bit_length: 8,
+                                 scale: 1, offset: 0, is_signed: false, endian: 1 });
+                }
+            });
+            if (synth.length) payload.signals = (payload.signals || []).concat(synth);
+            return JSON.stringify(payload);
         }
 
         /* Screen presets */
