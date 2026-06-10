@@ -3892,6 +3892,12 @@
                 });
                 _wasmReady = true;
                 console.log('[WASM] Preview engine loaded successfully');
+                /* Seed the built-in TTF families so the preview can render them
+                 * at ANY size via lv_tiny_ttf — exactly like the device, which
+                 * boot-seeds these to /lfs/fonts/. Without this the WASM only has
+                 * a few compiled bitmap sizes, so e.g. a "Manrope Bold:170" gear
+                 * number renders blank. Must run before the first preview. */
+                await _seedWasmBuiltinFonts();
                 /* WASM main() created SDL at the firmware-default 800x480 and
                  * stamped the canvas DOM back to those dims, undoing any size
                  * applyScreenDimensions had set during page init. If the user's
@@ -3910,6 +3916,33 @@
                 updateWasmPreview();
             } catch(e) {
                 console.error('[WASM] Preview engine FAILED to load:', e);
+            }
+        }
+
+        /* Built-in font families bundled with the studio (Latin-subset TTFs,
+         * same files the firmware embeds). Pushed into the WASM font_manager so
+         * tiny_ttf can synthesize any size. Family name === filename so the
+         * "Family:size" lookup (e.g. "Manrope Bold:170") resolves. */
+        const _BUILTIN_TTF_FAMILIES = ['Manrope Bold', 'Fugaz One', 'Montserrat'];
+        async function _seedWasmBuiltinFonts() {
+            if (!wasmModule || _wasmCrashed) return;
+            for (const fam of _BUILTIN_TTF_FAMILIES) {
+                if (_wasmRegisteredFonts.has(fam)) continue;
+                try {
+                    const resp = await fetch('fonts/' + encodeURIComponent(fam) + '.ttf');
+                    if (!resp.ok) { console.warn('[WASM] builtin font missing:', fam); continue; }
+                    const u8 = new Uint8Array(await resp.arrayBuffer());
+                    const ptr = wasmModule._malloc(u8.length);
+                    if (!ptr) continue;
+                    wasmModule.HEAPU8.set(u8, ptr);
+                    wasmModule.ccall('register_font', null,
+                        ['string', 'number', 'number'], [fam, ptr, u8.length]);
+                    wasmModule._free(ptr);
+                    _wasmRegisteredFonts.add(fam);
+                } catch (e) {
+                    if (e instanceof WebAssembly.RuntimeError) { _wasmCrashed = true; return; }
+                    console.warn('[WASM] builtin font seed failed:', fam, e);
+                }
             }
         }
 
