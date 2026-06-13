@@ -11731,6 +11731,16 @@
                     return;
                 }
 
+                /* Marketplace PRE-PUBLISH preview (?capture=preview) — the layout
+                   doesn't exist server-side yet, so instead of importing a URL and
+                   POSTing, we receive the .rdm bytes over postMessage and hand the
+                   captured image straight back to the opener. Headless like capture=1;
+                   branch out before any normal editor handling. */
+                if (params.get('capture') === 'preview') {
+                    _runPreviewCaptureFlow();
+                    return;
+                }
+
                 /* Locked preview mode — paid Marketplace layout, view-only */
                 if (isLocked) {
                     _lockedPreviewMode = true;
@@ -11810,10 +11820,14 @@
            reads as "mid revs, needle swept up" regardless of gauge scaling. Tune
            these values to taste — this is the single source of truth for the pose. */
         const CAPTURE_DEMO_POSE = {
-            gear:             3,
-            rpmFracOfRedline: 0.68,   /* ~68% of redline → clearly mid-revs */
-            throttle:         62,     /* % — on the power, so boost reads slightly positive */
-            warm:             1,      /* 0..1 engine warm-up; 1 = normal coolant/oil temps */
+            /* Freeze the live "Drag run" demo at this instant (seconds into the
+               drive cycle) instead of injecting synthetic values. ~5.5s lands
+               mid-pull in 3rd gear, ~4800 rpm, full throttle, boost up — a
+               flattering "this is it actually running" snapshot. Using the demo's
+               own curves keeps every gauge mutually consistent. Tune this one
+               number to move the frozen moment earlier/later in the pull. */
+            demoTime:         5.5,
+            warm:             1,      /* force normal coolant/oil temps (cold that early otherwise) */
             fuelLevelPct:     50,     /* % — about half a tank */
             fallbackFrac:     0.6,    /* unrecognised signals sit at 60% of range (mid-action) */
             settleMs:         450,    /* let needles/values animate toward the pose first */
@@ -11832,29 +11846,35 @@
             setTimeout(fin, 60);
         });
 
-        /* Build a coherent drive-state object (same shape _demoState() returns) from
-           the pose constant, then reuse the existing _demoValueFor() channel mapping
-           so every recognised signal gets a physically-consistent value. */
-        function _captureBuildPoseState() {
-            const gear = CAPTURE_DEMO_POSE.gear;
-            const rpm  = Math.round(_DEMO_REDLINE * CAPTURE_DEMO_POSE.rpmFracOfRedline);
-            /* speed consistent with this gear + rpm via the demo gear ratios */
-            const speed = Math.round((rpm / 1000) * (_DEMO_GEAR_RATIO[gear] || _DEMO_GEAR_RATIO[3]));
-            const throttle = CAPTURE_DEMO_POSE.throttle;
-            const load = Math.max(0, Math.min(1, (throttle / 100) * 0.6 + (rpm / _DEMO_REDLINE) * 0.4));
-            return { speed, gear, rpm, throttle, load, braking: false };
+        /* Wait until the WASM preview engine is actually up. On a cold load
+           _processRdmBytes can resolve BEFORE WASM finishes initialising, and
+           applyScreenDimensions() silently skips set_display_size() when
+           wasmModule is null — which is exactly how the capture ends up stuck at
+           a stale round screen on the first try but works once warm. Poll until
+           ready (or time out) so the screen-size + render below actually take. */
+        async function _captureWaitWasmReady(timeoutMs) {
+            const deadline = performance.now() + (timeoutMs || 12000);
+            while (performance.now() < deadline) {
+                if (typeof _wasmReady !== 'undefined' && _wasmReady && wasmModule && !_wasmCrashed) return true;
+                await _capDelay(80);
+            }
+            return false;
         }
 
-        /* Inject the frozen pose into the WASM sim. We intentionally do NOT start the
-           live _simLoop (that would sweep values and break determinism); we just push
-           one consistent set of values. Safe to call repeatedly to re-assert the pose
-           while needles settle. */
+        /* Inject a single frozen frame of the live "Drag run" demo, paused at
+           CAPTURE_DEMO_POSE.demoTime. Reuses the demo's own _demoState() +
+           _demoValueFor() at that instant so every channel matches what the dash
+           shows while actually running — just frozen. We do NOT start _simLoop
+           (that would keep sweeping and break determinism); `warm` is forced so
+           temps read normal even though they'd be cold that early in the cycle.
+           Safe to call repeatedly to re-assert the pose while needles settle. */
         function _captureApplyDemoPose() {
             try { _simEnsureConfigs(); } catch (e) {}
-            const st = _captureBuildPoseState();
+            const t = CAPTURE_DEMO_POSE.demoTime;
+            const st = _demoState(t);
             const warm = CAPTURE_DEMO_POSE.warm;
             for (const [name, cfg] of Object.entries(_simConfigs)) {
-                let v = _demoValueFor(name, st, warm, 0);          /* t=0 → deterministic */
+                let v = _demoValueFor(name, st, warm, t);
                 if (v === null) {                                   /* unrecognised channel */
                     const range = cfg.max - cfg.min;
                     v = range > 0 ? cfg.min + range * CAPTURE_DEMO_POSE.fallbackFrac : cfg.min;
@@ -12023,11 +12043,20 @@
                 if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised.');
                 await _processRdmBytes(bytes, (opts.friendly || 'layout') + '.rdm');
                 try { localStorage.removeItem('rdm7_draft'); } catch (e) {} /* don't persist a capture session */
-                try { if (typeof zoomToFit === 'function') zoomToFit(); } catch (e) {}
+
+                /* Wait for WASM, THEN force the standard 800×480 landscape screen
+                   and re-render the layout into it — otherwise set_display_size is
+                   skipped on a cold load and we capture a stale round screen. */
+                await _captureWaitWasmReady(12000);
+                try {
+                    if (typeof applyScreenDimensions === 'function') applyScreenDimensions(800, 480, 'rect', true);
+                    else if (typeof zoomToFit === 'function') zoomToFit();
+                    if (typeof updateWasmPreview === 'function') await updateWasmPreview();
+                } catch (e) {}
 
                 /* 2. Drive the sim to the deterministic demo pose and let it settle. */
                 _captureSetStatus('loading', 'Setting the scene…', 'Driving gauges to a demo pose.');
-                await _capDelay(350);                 /* give WASM a beat to load the layout */
+                await _capDelay(350);                 /* give WASM a beat to render the layout */
                 _captureApplyDemoPose();
                 await _capDelay(CAPTURE_DEMO_POSE.settleMs);
                 for (let i = 0; i < CAPTURE_DEMO_POSE.settleFrames; i++) {
@@ -12053,6 +12082,106 @@
                 _captureSetStatus('error', 'Capture failed', (e && e.message) || String(e));
                 console.error('[capture] flow failed:', e);
             }
+        }
+
+        /* ── Marketplace PRE-PUBLISH preview (?capture=preview) ──────────────
+           Opened as a popup by the upload wizard BEFORE the layout exists
+           server-side. We receive the .rdm bytes over postMessage, render the
+           same deterministic demo pose as the capture=1 flow, and post the
+           captured image straight back to the opener — no URL import, no token,
+           no POST, nothing server-side. Both sides validate origins. */
+        const PREVIEW_ALLOWED_ORIGINS = [
+            'https://marketplace.realtimedatamonitoring.com.au',
+            'http://localhost:3000',
+        ];
+
+        function _previewB64ToBytes(b64) {
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            return arr;
+        }
+
+        function _runPreviewCaptureFlow() {
+            /* Hide editor chrome behind the overlay — not an editing session. */
+            try { document.documentElement.classList.add('preview-embedded'); } catch (e) {}
+            const banner = document.getElementById('webPreviewBanner');
+            if (banner) banner.style.display = 'none';
+            _captureSetStatus('loading', 'Waiting for layout…', 'Receiving layout data from the Marketplace.');
+
+            let handled = false;
+
+            async function onMessage(ev) {
+                if (PREVIEW_ALLOWED_ORIGINS.indexOf(ev.origin) === -1) return; /* untrusted origin */
+                const data = ev.data || {};
+                if (data.type !== 'rdm-bytes' || handled) return;
+                handled = true;
+                window.removeEventListener('message', onMessage);
+
+                const reply = (msg) => {
+                    try { (ev.source || window.opener || window.parent).postMessage(msg, ev.origin); } catch (e) {}
+                };
+
+                try {
+                    if (typeof data.bytes !== 'string' || !data.bytes) throw new Error('No layout bytes received.');
+                    if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised.');
+                    const bytes = _previewB64ToBytes(data.bytes);
+
+                    /* 1. Import the received bytes through the normal pipeline. */
+                    _captureSetStatus('loading', 'Loading layout…', '');
+                    const nm = data.name || 'preview';
+                    await _processRdmBytes(bytes, /\.rdm$/i.test(nm) ? nm : nm + '.rdm');
+                    try { localStorage.removeItem('rdm7_draft'); } catch (e) {} /* don't persist */
+
+                    /* Wait for WASM, THEN force 800×480 landscape and re-render the
+                       layout into it (see capture flow) — avoids the stale round
+                       screen / blank frame when WASM is still warming up. */
+                    await _captureWaitWasmReady(12000);
+                    try {
+                        if (typeof applyScreenDimensions === 'function') applyScreenDimensions(800, 480, 'rect', true);
+                        else if (typeof zoomToFit === 'function') zoomToFit();
+                        if (typeof updateWasmPreview === 'function') await updateWasmPreview();
+                    } catch (e) {}
+
+                    /* 2. Drive the sim to the deterministic demo pose and settle. */
+                    _captureSetStatus('loading', 'Setting the scene…', 'Driving gauges to a demo pose.');
+                    await _capDelay(350);
+                    _captureApplyDemoPose();
+                    await _capDelay(CAPTURE_DEMO_POSE.settleMs);
+                    for (let i = 0; i < CAPTURE_DEMO_POSE.settleFrames; i++) {
+                        _captureApplyDemoPose();
+                        await _capNextFrame();
+                    }
+
+                    /* 3. Capture a stable, non-blank frame and encode it under 5 MB. */
+                    _captureSetStatus('loading', 'Capturing frame…', '');
+                    const frame = await _captureStableFrame();
+                    const image = _captureEncode(frame);
+
+                    /* 4. Hand it back to the opener (the validated origin only). */
+                    reply({ type: 'studio-preview-result', image: image });
+                    _captureSetStatus('success', 'Preview sent.', '');
+                    /* The Marketplace tears down the iframe on receipt — nothing
+                       to close here (window.close() is a no-op for an iframe). */
+                } catch (e) {
+                    reply({ type: 'studio-preview-error', error: (e && e.message) || String(e) });
+                    _captureSetStatus('error', 'Preview failed', (e && e.message) || String(e));
+                    console.error('[preview] flow failed:', e);
+                }
+            }
+
+            window.addEventListener('message', onMessage);
+
+            /* Announce readiness so the embedder sends the bytes. Works whether
+               Studio is opened as a popup (window.opener) or — as the Marketplace
+               now does — embedded as a hidden iframe (window.parent). '*' is safe:
+               this message carries no data and we only ACT on bytes from allowed
+               origins above. */
+            const _previewTarget = window.opener || (window.parent !== window ? window.parent : null);
+            try {
+                if (_previewTarget) _previewTarget.postMessage({ type: 'studio-preview-ready' }, '*');
+                else _captureSetStatus('error', 'No embedder', 'Open this preview from the Marketplace upload form.');
+            } catch (e) {}
         }
 
         /* Preview mode — Studio is embedded in a Marketplace iframe as a live
