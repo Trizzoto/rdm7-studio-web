@@ -8659,9 +8659,16 @@
                 seen.add(s.name);
                 if (!_simConfigs[s.name]) {
                     const b = _simGetDefaultBounds(s.name);
+                    /* Prefer the channel's own configured range so the fallback
+                     * sweep stays in-range (e.g. a 0-50 channel sweeps 0-50). */
+                    let min = b.min, max = b.max;
+                    if (s.min != null && s.max != null && Number(s.max) > Number(s.min)) {
+                        min = Number(s.min); max = Number(s.max);
+                    }
                     _simConfigs[s.name] = {
-                        mode: 'pingpong', min: b.min, max: b.max,
-                        speed: 2000, staticValue: b.min, gears: 3, enabled: true
+                        mode: 'pingpong', min, max,
+                        speed: 2000 + (s.name.length % 5) * 350, /* vary so channels aren't in lockstep */
+                        staticValue: min, gears: 3, enabled: true
                     };
                 }
             });
@@ -8842,6 +8849,18 @@
             if (n.includes('FUELLEVEL') || (n.includes('FUEL') && n.includes('LEVEL'))) { const cl = _demoCycleLen(); return Math.round(74 - (t % cl) / cl * 2); }
             if ((n.includes('LAMBDA') || n === 'AFR') && !n.includes('CORR')) return n.includes('AFR') ? +(st.load > 0.5 ? 12.4 : 14.4).toFixed(1) : +(st.load > 0.5 ? 0.84 : (st.throttle < 2 ? 1.0 : 0.95)).toFixed(2);
             if (n.includes('MAF')) return Math.round(3 + st.load * 320);
+            /* ── Generic catch-alls so EVERY channel gets a believable value ──
+             * (run after the specific matches above so they win). */
+            if (n.includes('FUEL') && (n.includes('LEVEL') || n.includes('SENDER') || n.endsWith('V'))) {
+                const cl = _demoCycleLen(); return +(3.0 - (t % cl) / cl * 0.5).toFixed(2);  /* slow tank drain (sender V) */
+            }
+            if (n.includes('TEMP')) return Math.round(50 + 60 * warm + wob(2));               /* gearbox/diff/any temp warms up */
+            if (n.includes('PRESS')) return +(1.0 + st.load * 4.0 + wob(0.1)).toFixed(1);      /* any pressure tracks load */
+            if (n.includes('VOLT') || n.includes('VBAT')) return +(13.8 + (st.rpm > 1200 ? 0.4 : 0) + wob(0.05)).toFixed(1);
+            if (n.includes('FPS') || n.includes('FRAME')) return Math.round(58 + wob(1.5));    /* steady frame rate */
+            if (n.includes('SPEED') || n.includes('RPM') || n.includes('FREQ')) return Math.round(st.rpm); /* spinning things */
+            if (n.includes('LOAD') || n.includes('DUTY') || n.includes('PEDAL') || n.includes('POS')) return Math.round(st.load * 100);
+            if (n.includes('LAMBDA') || n.includes('AFR') || n.includes('O2')) return +(0.85 + st.load * 0.0).toFixed(2);
             return null;
         }
 
@@ -11697,6 +11716,21 @@
                 const wantsAutoSim = params.get('autoSim') === '1' || isLocked;
                 const layoutId = params.get('layoutId') || '';
 
+                /* Marketplace auto-capture (?capture=1) — render this layout, drive
+                   it to a fixed flattering "demo pose", grab the canvas, and POST the
+                   PNG back so the Marketplace can use it as the layout's preview.
+                   This is a headless, non-interactive flow: branch out here BEFORE any
+                   normal editor / preview / locked handling and never return to it. */
+                if (params.get('capture') === '1') {
+                    _runCaptureFlow({
+                        url:          url || '',
+                        friendly:     params.get('importName') || 'Marketplace layout',
+                        layoutId:     layoutId,
+                        captureToken: params.get('captureToken') || '',
+                    });
+                    return;
+                }
+
                 /* Locked preview mode — paid Marketplace layout, view-only */
                 if (isLocked) {
                     _lockedPreviewMode = true;
@@ -11749,6 +11783,275 @@
             } catch (e) {
                 showToast('Marketplace import failed: ' + (e.message || e), 'error');
                 console.error('Marketplace import:', e);
+            }
+        }
+
+        /* ── Marketplace auto-capture preview screenshot ─────────────────────
+           When the Marketplace has no preview image for a layout, it opens Studio
+           with ?capture=1&import=<url>&layoutId=<uuid>&captureToken=<tok>. Studio
+           is the only app with the renderer, so it loads the layout, freezes the
+           sim at a deterministic flattering "demo pose", grabs the canvas as a PNG,
+           and POSTs it back. No auth/Supabase here — the opaque captureToken (echoed
+           back, never parsed) is what authorises the write marketplace-side. */
+
+        /* On localhost, post the capture to the LOCAL marketplace — a capture
+           token minted by the local marketplace only verifies against the local
+           endpoint (same signing secret + Supabase project), so prod would 401. */
+        const MARKETPLACE_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+            ? 'http://localhost:3000'
+            : 'https://marketplace.realtimedatamonitoring.com.au';
+        const CAPTURE_MAX_BYTES = 5 * 1024 * 1024;   /* server rejects > 5 MB (413) */
+        const CAPTURE_TARGET_W  = 1024;              /* downscale wider canvases to this */
+
+        /* The deterministic "demo pose" — a single fixed, flattering snapshot every
+           layout's preview is captured at, so previews look consistent. Unlike the
+           live demo drive (which sweeps through a cycle), we freeze every channel
+           here. RPM is expressed as a fraction of the demo model's redline so it
+           reads as "mid revs, needle swept up" regardless of gauge scaling. Tune
+           these values to taste — this is the single source of truth for the pose. */
+        const CAPTURE_DEMO_POSE = {
+            gear:             3,
+            rpmFracOfRedline: 0.68,   /* ~68% of redline → clearly mid-revs */
+            throttle:         62,     /* % — on the power, so boost reads slightly positive */
+            warm:             1,      /* 0..1 engine warm-up; 1 = normal coolant/oil temps */
+            fuelLevelPct:     50,     /* % — about half a tank */
+            fallbackFrac:     0.6,    /* unrecognised signals sit at 60% of range (mid-action) */
+            settleMs:         450,    /* let needles/values animate toward the pose first */
+            settleFrames:     3,      /* …plus a few frames so nothing is caught mid-tween */
+        };
+
+        const _capDelay = (ms) => new Promise(r => setTimeout(r, ms));
+        /* Wait one paint, but never hang: requestAnimationFrame is throttled/paused
+           when the tab isn't visible (e.g. capture opened in a background tab), so we
+           race it against a short timer. When visible, rAF wins and we stay aligned
+           with the WASM draw; when hidden, the timer keeps the flow moving. */
+        const _capNextFrame = () => new Promise(resolve => {
+            let done = false;
+            const fin = () => { if (!done) { done = true; resolve(); } };
+            requestAnimationFrame(fin);
+            setTimeout(fin, 60);
+        });
+
+        /* Build a coherent drive-state object (same shape _demoState() returns) from
+           the pose constant, then reuse the existing _demoValueFor() channel mapping
+           so every recognised signal gets a physically-consistent value. */
+        function _captureBuildPoseState() {
+            const gear = CAPTURE_DEMO_POSE.gear;
+            const rpm  = Math.round(_DEMO_REDLINE * CAPTURE_DEMO_POSE.rpmFracOfRedline);
+            /* speed consistent with this gear + rpm via the demo gear ratios */
+            const speed = Math.round((rpm / 1000) * (_DEMO_GEAR_RATIO[gear] || _DEMO_GEAR_RATIO[3]));
+            const throttle = CAPTURE_DEMO_POSE.throttle;
+            const load = Math.max(0, Math.min(1, (throttle / 100) * 0.6 + (rpm / _DEMO_REDLINE) * 0.4));
+            return { speed, gear, rpm, throttle, load, braking: false };
+        }
+
+        /* Inject the frozen pose into the WASM sim. We intentionally do NOT start the
+           live _simLoop (that would sweep values and break determinism); we just push
+           one consistent set of values. Safe to call repeatedly to re-assert the pose
+           while needles settle. */
+        function _captureApplyDemoPose() {
+            try { _simEnsureConfigs(); } catch (e) {}
+            const st = _captureBuildPoseState();
+            const warm = CAPTURE_DEMO_POSE.warm;
+            for (const [name, cfg] of Object.entries(_simConfigs)) {
+                let v = _demoValueFor(name, st, warm, 0);          /* t=0 → deterministic */
+                if (v === null) {                                   /* unrecognised channel */
+                    const range = cfg.max - cfg.min;
+                    v = range > 0 ? cfg.min + range * CAPTURE_DEMO_POSE.fallbackFrac : cfg.min;
+                }
+                const n = _demoNorm(name);
+                if (n.includes('FUELLEVEL') || (n.includes('FUEL') && n.includes('LEVEL'))) {
+                    v = CAPTURE_DEMO_POSE.fuelLevelPct;             /* explicit "half a tank" */
+                }
+                if (v !== null) injectWasmSignal(name, v);
+            }
+        }
+
+        /* Draw the live WASM canvas onto a fresh 2D canvas, downscaled so the longest
+           side is <= CAPTURE_TARGET_W. The 2D copy is also what lets us read pixels
+           back for the blank-frame check below. */
+        function _captureGrabCanvas() {
+            const src = document.getElementById('canvas');
+            if (!src || !src.width || !src.height) return null;
+            const scale = Math.min(1, CAPTURE_TARGET_W / src.width);
+            const w = Math.max(1, Math.round(src.width * scale));
+            const h = Math.max(1, Math.round(src.height * scale));
+            const tmp = document.createElement('canvas');
+            tmp.width = w; tmp.height = h;
+            tmp.getContext('2d').drawImage(src, 0, 0, w, h);
+            return tmp;
+        }
+
+        /* Guard against a black/blank grab — if the WASM canvas is WebGL without a
+           preserved drawing buffer, a copy taken outside the draw frame comes back
+           empty. We sample pixels and treat "almost nothing lit" as blank so we can
+           re-assert the pose and retry on the next frame. */
+        function _captureLooksBlank(canvas) {
+            try {
+                const { width, height } = canvas;
+                const data = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+                let lit = 0;
+                const step = Math.max(4, Math.floor(data.length / 8000) * 4); /* sample ~2k px */
+                for (let i = 0; i < data.length; i += step) {
+                    if (data[i] > 12 || data[i + 1] > 12 || data[i + 2] > 12) {
+                        if (++lit > 5) return false;
+                    }
+                }
+                return true;
+            } catch (e) { return false; }  /* tainted/unreadable → assume fine */
+        }
+
+        /* Capture a stable, non-blank frame. Grabs after a paint (via _capNextFrame, so
+           it stays aligned with the WASM draw when visible but can't hang when hidden);
+           retries a few times — re-asserting the pose — if the frame comes back blank. */
+        async function _captureStableFrame() {
+            for (let attempts = 0; ; attempts++) {
+                await _capNextFrame();
+                const c = _captureGrabCanvas();
+                if (!c) throw new Error('Dashboard canvas not found');
+                if (!_captureLooksBlank(c) || attempts >= 5) return c;
+                _captureApplyDemoPose();
+            }
+        }
+
+        function _captureDataUrlBytes(u) {
+            const comma = u.indexOf(',');
+            return comma < 0 ? 0 : Math.floor((u.length - comma - 1) * 3 / 4);
+        }
+
+        /* Encode the captured canvas, keeping it under the 5 MB server limit. PNG
+           first (lossless); fall back to descending-quality JPEG only if PNG is too
+           big (rare for an 800×480 dashboard). */
+        function _captureEncode(canvas) {
+            let url = canvas.toDataURL('image/png');
+            if (_captureDataUrlBytes(url) <= CAPTURE_MAX_BYTES) return url;
+            for (const q of [0.9, 0.8, 0.7, 0.6]) {
+                url = canvas.toDataURL('image/jpeg', q);
+                if (_captureDataUrlBytes(url) <= CAPTURE_MAX_BYTES) return url;
+            }
+            return url; /* still too big → let the server 413 and we surface that */
+        }
+
+        async function _capturePost(layoutId, captureToken, image) {
+            const resp = await fetch(MARKETPLACE_URL + '/api/layout-screenshot', {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ layoutId, captureToken, image }),
+            });
+            let data = {};
+            try { data = await resp.json(); } catch (e) { /* non-JSON / empty body */ }
+            return { status: resp.status, data };
+        }
+
+        function _captureErrorInfo(status, data) {
+            const err = (data && data.error) || '';
+            switch (status) {
+                case 401: return { title: 'Preview link expired',
+                    detail: 'This capture link is no longer valid (links last ~15 minutes). In the Marketplace, click "Generate preview" again to get a fresh link, then retry.' };
+                case 403: return { title: 'Preview link rejected',
+                    detail: err || 'This link doesn\'t match the layout it was issued for.' };
+                case 404: return { title: 'Layout not found',
+                    detail: err || 'The Marketplace couldn\'t find this layout.' };
+                case 413: return { title: 'Image too large',
+                    detail: err || 'The captured image exceeded 5 MB.' };
+                case 400: return { title: 'Capture rejected',
+                    detail: err || 'The Marketplace rejected the image.' };
+                default:  return { title: 'Preview save failed',
+                    detail: err || ('Unexpected response from the Marketplace (HTTP ' + status + ').') };
+            }
+        }
+
+        /* Full-screen status overlay so the capture flow never shows the editor. */
+        function _captureOverlay() {
+            let o = document.getElementById('captureOverlay');
+            if (o) return o;
+            o = document.createElement('div');
+            o.id = 'captureOverlay';
+            o.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;' +
+                'align-items:center;justify-content:center;gap:18px;text-align:center;padding:32px;' +
+                'background:#1c1c1c;color:#e8e8e8;font-family:Sora,system-ui,sans-serif;';
+            o.innerHTML =
+                '<div id="captureSpinner" style="width:46px;height:46px;border:4px solid #444;' +
+                    'border-top-color:#2d8ceb;border-radius:50%;animation:capSpin 0.9s linear infinite;"></div>' +
+                '<div id="captureIcon" style="font-size:46px;line-height:1;display:none;"></div>' +
+                '<div id="captureTitle" style="font-size:18px;font-weight:600;">Preparing preview…</div>' +
+                '<div id="captureDetail" style="font-size:13px;color:#9a9a9a;max-width:440px;line-height:1.5;"></div>';
+            if (!document.getElementById('capSpinKeyframes')) {
+                const st = document.createElement('style');
+                st.id = 'capSpinKeyframes';
+                st.textContent = '@keyframes capSpin{to{transform:rotate(360deg)}}';
+                document.head.appendChild(st);
+            }
+            document.body.appendChild(o);
+            return o;
+        }
+
+        function _captureSetStatus(kind, title, detail) {
+            const o = _captureOverlay();
+            const spin = o.querySelector('#captureSpinner');
+            const icon = o.querySelector('#captureIcon');
+            const t = o.querySelector('#captureTitle');
+            const d = o.querySelector('#captureDetail');
+            t.textContent = title || '';
+            d.textContent = detail || '';
+            if (kind === 'loading') {
+                spin.style.display = ''; icon.style.display = 'none';
+            } else {
+                spin.style.display = 'none'; icon.style.display = '';
+                icon.textContent = kind === 'success' ? '✓' : '⚠';
+                icon.style.color = kind === 'success' ? '#4ade80' : '#f87171';
+            }
+        }
+
+        async function _runCaptureFlow(opts) {
+            /* Hide editor chrome behind the overlay — this is not an editing session. */
+            try { document.documentElement.classList.add('preview-embedded'); } catch (e) {}
+            const banner = document.getElementById('webPreviewBanner');
+            if (banner) banner.style.display = 'none';
+            _captureSetStatus('loading', 'Loading layout…', '');
+
+            try {
+                if (!opts.layoutId)     throw new Error('Missing layoutId — open this page from the Marketplace.');
+                if (!opts.captureToken) throw new Error('Missing capture token — open this page from the Marketplace.');
+                if (!/^https:\/\//i.test(opts.url)) throw new Error('Missing or invalid layout URL.');
+
+                /* 1. Fetch + load the .rdm through the normal import pipeline. */
+                const resp = await fetch(opts.url, { credentials: 'omit', mode: 'cors' });
+                if (!resp.ok) throw new Error('Could not download the layout (HTTP ' + resp.status + ').');
+                const bytes = new Uint8Array(await resp.arrayBuffer());
+                if (typeof _processRdmBytes !== 'function') throw new Error('Import pipeline not initialised.');
+                await _processRdmBytes(bytes, (opts.friendly || 'layout') + '.rdm');
+                try { localStorage.removeItem('rdm7_draft'); } catch (e) {} /* don't persist a capture session */
+                try { if (typeof zoomToFit === 'function') zoomToFit(); } catch (e) {}
+
+                /* 2. Drive the sim to the deterministic demo pose and let it settle. */
+                _captureSetStatus('loading', 'Setting the scene…', 'Driving gauges to a demo pose.');
+                await _capDelay(350);                 /* give WASM a beat to load the layout */
+                _captureApplyDemoPose();
+                await _capDelay(CAPTURE_DEMO_POSE.settleMs);
+                for (let i = 0; i < CAPTURE_DEMO_POSE.settleFrames; i++) {
+                    _captureApplyDemoPose();
+                    await _capNextFrame();
+                }
+
+                /* 3. Capture a stable, non-blank frame and encode it under 5 MB. */
+                _captureSetStatus('loading', 'Capturing frame…', '');
+                const frame = await _captureStableFrame();
+                const image = _captureEncode(frame);
+
+                /* 4. POST it back to the Marketplace. */
+                _captureSetStatus('loading', 'Saving preview…', '');
+                const { status, data } = await _capturePost(opts.layoutId, opts.captureToken, image);
+                if (status === 200 && data && data.ok) {
+                    _captureSetStatus('success', 'Preview saved — you can close this tab.', '');
+                } else {
+                    const info = _captureErrorInfo(status, data);
+                    _captureSetStatus('error', info.title, info.detail);
+                }
+            } catch (e) {
+                _captureSetStatus('error', 'Capture failed', (e && e.message) || String(e));
+                console.error('[capture] flow failed:', e);
             }
         }
 
