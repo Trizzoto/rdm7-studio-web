@@ -4214,6 +4214,25 @@
                 }
             });
             if (synth.length) payload.signals = (payload.signals || []).concat(synth);
+            /* A channel-bound layout DOES list the channel name in signals[] — but
+             * only carries presentation hints (min/max/decimals/unit), since the
+             * decode lives on the device. _seedMissingSignals also materialises
+             * such bare entries. _load_signals in the WASM silently drops any
+             * signal without a bit_length, so those channels never bind and the
+             * demo has nowhere to inject (gauges read "--"). Backfill placeholder
+             * decode fields onto every signal still missing them. Preview-only:
+             * payload is a deep copy, so the saved/exported layout is untouched. */
+            (payload.signals || []).forEach(s => {
+                if (s && s.bit_length == null) {
+                    s.can_id = s.can_id || 0;
+                    s.bit_start = s.bit_start || 0;
+                    s.bit_length = 8;
+                    s.scale = s.scale || 1;
+                    s.offset = s.offset || 0;
+                    s.is_signed = !!s.is_signed;
+                    s.endian = s.endian || 1;
+                }
+            });
             return JSON.stringify(payload);
         }
 
@@ -8889,6 +8908,10 @@
         }
 
         function toggleSimulation() {
+            /* During a marketplace capture we inject a single frozen "demo pose"
+             * ourselves — never let the auto-demo (or any caller) start the live
+             * sweep, which would overwrite that pose with a moving value. */
+            if (window._captureMode && !_simActive) return;
             _simActive = !_simActive;
             const btn = document.getElementById('pillSimulate');
             const gear = document.getElementById('simSettingsBtn');
@@ -10433,7 +10456,14 @@
                  * the import becomes the only layout we load, so the default never
                  * flashes on screen first. */
                 let _importing = false;
-                try { _importing = !!new URLSearchParams(window.location.search).get('import'); } catch (e) {}
+                try {
+                    const _sp = new URLSearchParams(window.location.search);
+                    /* Also skip for marketplace capture (capture=1 / capture=preview):
+                     * those load their own layout and must NOT have the default load
+                     * first — otherwise the auto-demo binds the default layout's
+                     * channels and the captured layout's widgets read "--". */
+                    _importing = !!_sp.get('import') || _sp.get('capture') === '1' || _sp.get('capture') === 'preview';
+                } catch (e) {}
                 if (!_importing) loadLayout(activeName);
             } catch (e) { updateStatus('Error loading layout list', true); }
         }
@@ -12084,6 +12114,7 @@
         }
 
         async function _runCaptureFlow(opts) {
+            window._captureMode = true; /* suppress the live auto-demo; we pose manually */
             /* Hide editor chrome behind the overlay — this is not an editing session. */
             try { document.documentElement.classList.add('preview-embedded'); } catch (e) {}
             const banner = document.getElementById('webPreviewBanner');
@@ -12112,6 +12143,11 @@
                     else if (typeof zoomToFit === 'function') zoomToFit();
                     if (typeof updateWasmPreview === 'function') await updateWasmPreview();
                 } catch (e) {}
+
+                /* Rebuild the sim channel set for the JUST-imported layout (clear any
+                   stale configs) so the frozen pose drives THIS layout's channels —
+                   not a previously-loaded layout's. Without this, widgets read "--". */
+                try { if (typeof _simResetDefaults === 'function') _simResetDefaults(); } catch (e) {}
 
                 /* 2. Drive the sim to the deterministic demo pose and let it settle. */
                 _captureSetStatus('loading', 'Setting the scene…', 'Driving gauges to a demo pose.');
@@ -12162,6 +12198,7 @@
         }
 
         function _runPreviewCaptureFlow() {
+            window._captureMode = true; /* suppress the live auto-demo; we pose manually */
             /* Hide editor chrome behind the overlay — not an editing session. */
             try { document.documentElement.classList.add('preview-embedded'); } catch (e) {}
             const banner = document.getElementById('webPreviewBanner');
@@ -12201,6 +12238,11 @@
                         else if (typeof zoomToFit === 'function') zoomToFit();
                         if (typeof updateWasmPreview === 'function') await updateWasmPreview();
                     } catch (e) {}
+
+                    /* Rebuild the sim channel set for the JUST-imported layout (clear
+                       stale configs) so the frozen pose drives THIS layout's channels.
+                       Without this, the widgets read "--". */
+                    try { if (typeof _simResetDefaults === 'function') _simResetDefaults(); } catch (e) {}
 
                     /* 2. Drive the sim to the deterministic demo pose and settle. */
                     _captureSetStatus('loading', 'Setting the scene…', 'Driving gauges to a demo pose.');
@@ -14608,10 +14650,26 @@ function openMobileMenu() {
     });
   });
 }
+/* Close ANY open sidebar drawer/sheet — left (Widgets) or right
+   (Properties/Layers/Channels) — and reset the overlay + action-bar state.
+   The old code only touched `document.querySelector('.sidebar')`, which always
+   matches the FIRST `.sidebar` (the left one), so an open right drawer was never
+   dismissed on tap-out. */
+function closeMobileSidebars() {
+  document.querySelectorAll('.sidebar.mobile-open').forEach(function(s) {
+    s.classList.remove('mobile-open', 'sheet-full');
+    s.style.height = ''; /* clear any drag-resize leftover */
+  });
+  var overlay = document.getElementById('mobileMenuOverlay');
+  if (overlay) overlay.classList.remove('active');
+  /* Drop the bottom action-bar highlight (Sim is a toggle — leave it alone). */
+  document.querySelectorAll('#mobileActionBar button').forEach(function(b) {
+    if (b.dataset.action !== 'sim') b.classList.remove('active');
+  });
+}
 function closeMobileMenu() {
-  document.getElementById('mobileMenuOverlay').classList.remove('active');
   document.getElementById('mobileMenuPanel').classList.remove('active');
-  document.querySelector('.sidebar')?.classList.remove('mobile-open');
+  closeMobileSidebars();
 }
 function toggleMobileSidebar() {
   var sidebar = document.querySelector('.sidebar');
@@ -14955,55 +15013,65 @@ setInterval(function() {
    The handle is the sidebar's ::before pseudo-element — pointerdown anywhere in
    the top 40px of the sidebar acts as handle. */
 (function setupSheetDrag() {
-  var sheet = document.querySelector('.sidebar-right');
-  if (!sheet) return;
   var HANDLE_ZONE_PX = 40;
-  var dragging = false, startY = 0, startTransform = 0, startHeight = 0;
-  function onDown(e) {
-    var rect = sheet.getBoundingClientRect();
-    /* Only activate on the handle zone at the top */
-    if (e.clientY - rect.top > HANDLE_ZONE_PX) return;
-    /* Only when sheet is open */
-    if (!sheet.classList.contains('mobile-open')) return;
-    dragging = true;
-    startY = e.clientY;
-    startHeight = rect.height;
-    sheet.style.transition = 'none';
-    try { sheet.setPointerCapture(e.pointerId); } catch (err) {}
-    e.preventDefault();
-  }
-  function onMove(e) {
-    if (!dragging) return;
-    var dy = e.clientY - startY;
-    /* Negative dy = dragging up (expand); positive = dragging down (shrink/dismiss) */
-    var newHeight = Math.max(120, Math.min(window.innerHeight * 0.92, startHeight - dy));
-    sheet.style.height = newHeight + 'px';
-  }
-  function onUp(e) {
-    if (!dragging) return;
-    dragging = false;
-    sheet.style.transition = '';
-    var rect = sheet.getBoundingClientRect();
-    var fraction = rect.height / window.innerHeight;
-    /* Snap points: < 0.25 close, < 0.65 half, else full */
-    if (fraction < 0.25) {
-      sheet.style.height = '';
-      sheet.classList.remove('mobile-open', 'sheet-full');
-      var overlay = document.getElementById('mobileMenuOverlay');
-      if (overlay) overlay.classList.remove('active');
-    } else if (fraction < 0.65) {
-      sheet.style.height = '';
-      sheet.classList.remove('sheet-full');
-    } else {
-      sheet.style.height = '';
-      sheet.classList.add('sheet-full');
+  var MOVE_THRESHOLD = 6; /* px before a touch counts as a drag (lets taps reach the tabs) */
+  /* Bind to BOTH sidebars — the Widgets (left) sheet needs swipe-to-dismiss too,
+     not just Properties/Layers/Channels (right). */
+  document.querySelectorAll('.sidebar').forEach(function(sheet) {
+    var pending = false, dragging = false, startY = 0, startHeight = 0, pid = null;
+    function onDown(e) {
+      if (!sheet.classList.contains('mobile-open')) return;
+      var rect = sheet.getBoundingClientRect();
+      /* Only the handle zone at the top arms a drag */
+      if (e.clientY - rect.top > HANDLE_ZONE_PX) return;
+      pending = true; dragging = false;
+      startY = e.clientY;
+      startHeight = rect.height;
+      pid = e.pointerId;
     }
-  }
-  sheet.addEventListener('pointerdown', onDown);
-  sheet.addEventListener('pointermove', onMove);
-  sheet.addEventListener('pointerup', onUp);
-  sheet.addEventListener('pointercancel', onUp);
-  sheet.addEventListener('pointerleave', onUp);
+    function onMove(e) {
+      if (!pending) return;
+      var dy = e.clientY - startY;
+      if (!dragging) {
+        /* Defer capture until real movement so a tap still hits the tab buttons */
+        if (Math.abs(dy) < MOVE_THRESHOLD) return;
+        dragging = true;
+        sheet.style.transition = 'none';
+        try { sheet.setPointerCapture(pid); } catch (err) {}
+      }
+      e.preventDefault();
+      /* Negative dy = drag up (expand); positive = drag down (shrink/dismiss).
+         The open-state CSS pins height with `!important`, so the live height must
+         be set as inline `!important` to actually win and follow the finger. */
+      var newHeight = Math.max(120, Math.min(window.innerHeight * 0.92, startHeight - dy));
+      sheet.style.setProperty('height', newHeight + 'px', 'important');
+    }
+    function onUp(e) {
+      pending = false;
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.transition = '';
+      var rect = sheet.getBoundingClientRect();
+      var fraction = rect.height / window.innerHeight;
+      var shrunk = startHeight - rect.height; /* how far it was dragged down */
+      /* Dismiss when shrunk past ~a third of the viewport OR pulled down a clear
+         distance; otherwise snap to half / full. */
+      if (fraction < 0.35 || shrunk > 100) {
+        sheet.style.height = '';
+        closeMobileSidebars();
+      } else if (fraction < 0.7) {
+        sheet.style.height = '';
+        sheet.classList.remove('sheet-full');
+      } else {
+        sheet.style.height = '';
+        sheet.classList.add('sheet-full');
+      }
+    }
+    sheet.addEventListener('pointerdown', onDown);
+    sheet.addEventListener('pointermove', onMove);
+    sheet.addEventListener('pointerup', onUp);
+    sheet.addEventListener('pointercancel', onUp);
+  });
 })();
 
 /* ── Zoom bar auto-hide ────────────────────────────
