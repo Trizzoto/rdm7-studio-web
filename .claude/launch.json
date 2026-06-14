@@ -8,6 +8,13 @@
       "port": 3002
     },
     {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "public", "-l", "3011"],
+      "port": 3011,
+      "autoPort": true
+    },
+    {
       "name": "hero",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "hero-prototype", "-l", "3003"],
