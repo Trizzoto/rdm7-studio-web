@@ -1,0 +1,75 @@
+# RDM-7 API Gaps (Firmware Endpoints with No RDM Method)
+
+## Critical Gaps by Category
+
+### Splash Screen Control (4 endpoints)
+- POST /api/splash/set
+- POST /api/splash/fade
+- POST /api/splash/enabled
+- POST /api/splash/bootanim
+
+### ECU Selection (4 endpoints)
+- GET /api/ecu/list
+- GET /api/ecu/current
+- POST /api/ecu/set
+- GET/POST /api/ecu/picker_mode
+
+### Channels Architecture (7 endpoints) - Possible signals replacement
+- GET/POST /api/channels
+- GET /api/channels/source-options
+- POST /api/channels/bind-source
+- GET /api/channels/canonical
+- POST /api/channels/activate
+- POST /api/channels/delete
+
+### Advanced Logging (8 endpoints)
+- GET/POST /api/log/config
+- POST /api/log/upload
+- GET/POST /api/canraw/start/stop/status
+- POST /api/canraw/cloud_upload
+- GET /api/canraw/cloud_upload/status
+
+### Advanced OTA (2 endpoints)
+- POST /api/ota/check
+- POST /api/ota/start
+
+### OBD2 Integration (8 endpoints) - Full diagnostics unreachable
+- GET /api/obd2/dtcs
+- POST /api/obd2/clear
+- GET /api/obd2/vin
+- GET /api/obd2/ecuname
+- POST /api/obd2/snapshot
+- GET /api/obd2/protocols
+- GET /api/obd2/pids
+- POST /api/obd2/test_pid
+
+### Signal Management (2 endpoints)
+- POST /api/signal/clear
+- POST /api/signal/update
+
+### Test & Debug (5 endpoints)
+- POST /api/banner/test
+- POST /api/indicator/test
+- POST /api/warning/test
+- POST /api/touch
+- POST /api/screen/switch
+
+### Vehicle Config (2 endpoints)
+- GET/POST /api/gear/config
+- GET/POST /api/odometer
+
+### Advanced Presets (3 endpoints)
+- GET /api/presets/custom
+- POST /api/presets/custom/save
+- POST /api/presets/custom/delete
+
+### Fuel Fine-tuning (1 endpoint)
+- POST /api/fuel/set-points
+
+### Streaming (1 endpoint)
+- GET /api/capture/stream (MJPEG multipart)
+
+## Summary
+Total Firmware Endpoints: ~82
+Mapped to RDM: ~40 (49%)
+Unmapped: ~42 (51%)
