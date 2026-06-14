@@ -5445,6 +5445,9 @@
                     w.config.bar_alerts_enabled = (lo !== mn || hi !== mx);
                 }
             });
+            /* Materialise channels referenced by widgets but missing from signals[]
+             * (marketplace .rdm layouts often ship a minimal signals[]). */
+            if (typeof _seedMissingSignals === 'function') _seedMissingSignals(data);
             /* Convert firmware RGB565 colors → RGB888 for editor (after rule overrides are in object format) */
             convertWidgetColors(data.widgets, rgb565to888);
         }
@@ -10426,7 +10429,12 @@
                     if (l === activeName) opt.selected = true;
                     layoutSelect.appendChild(opt);
                 });
-                loadLayout(activeName);
+                /* Skip the default/active load when a marketplace import is pending:
+                 * the import becomes the only layout we load, so the default never
+                 * flashes on screen first. */
+                let _importing = false;
+                try { _importing = !!new URLSearchParams(window.location.search).get('import'); } catch (e) {}
+                if (!_importing) loadLayout(activeName);
             } catch (e) { updateStatus('Error loading layout list', true); }
         }
 
@@ -10442,6 +10450,39 @@
                     layoutSelect.appendChild(opt);
                 });
             } catch (e) { /* silent */ }
+        }
+
+        /* Channel-bound layouts (firmware/marketplace) reference channels by name
+         * on each widget but may not list them all in signals[]. Materialise a
+         * signal entry for every referenced-but-missing channel so it shows in the
+         * Channels editor and the demo can drive it. Range/units from widget config. */
+        function _seedMissingSignals(layout) {
+            if (!layout || !Array.isArray(layout.widgets)) return;
+            if (!Array.isArray(layout.signals)) layout.signals = [];
+            const have = new Set(layout.signals.map(s => s && s.name).filter(Boolean));
+            layout.widgets.forEach(w => {
+                const name = w.signal || (w.config && w.config.signal_name);
+                if (!name || have.has(name)) return;
+                const c = w.config || {};
+                const pick = (...keys) => { for (const k of keys) if (c[k] != null) return c[k]; return undefined; };
+                const sig = { name: name };
+                const mn = pick('signal_min', 'bar_min', 'arc_min', 'rpm_min');
+                const mx = pick('signal_max', 'bar_max', 'arc_max', 'rpm_max');
+                if (mn != null) sig.min = mn;
+                if (mx != null) sig.max = mx;
+                const dec = pick('decimals'); if (dec != null) sig.decimals = dec;
+                const unit = pick('unit'); if (unit != null) sig.unit = unit;
+                layout.signals.push(sig);
+                have.add(name);
+            });
+        }
+
+        /* Keep the running demo's channel set in sync with the active layout. The
+         * sim only builds its config set when it's toggled on, so switching layouts
+         * (or a marketplace import) while it runs would otherwise leave the new
+         * layout's channels undriven. */
+        function _simSyncToLayout() {
+            try { if (typeof _simActive !== 'undefined' && _simActive && typeof _simResetDefaults === 'function') _simResetDefaults(); } catch (e) {}
         }
 
         async function loadLayout(name) {
@@ -10513,6 +10554,8 @@
                         w.config.bar_alerts_enabled = (lo !== mn || hi !== mx);
                     }
                 });
+                /* Materialise channels referenced by widgets but missing from signals[] */
+                _seedMissingSignals(currentLayout);
                 /* Convert firmware RGB565 colors → RGB888 for editor */
                 convertWidgetColors(currentLayout.widgets, rgb565to888);
                 _editingActive = false;
@@ -10534,6 +10577,8 @@
                     setTimeout(() => {
                         try { if (typeof _simActive !== 'undefined' && !_simActive && typeof toggleSimulation === 'function') toggleSimulation(); } catch (e) {}
                     }, 400);
+                } else {
+                    _simSyncToLayout();   /* demo already running → drive THIS layout's channels */
                 }
             } catch (e) { updateStatus(`Error loading layout ${name}`, true); }
         }
@@ -11657,6 +11702,17 @@
                 renderEditor(); renderSignals(); updateInspector(); refreshStorageInfo();
                 /* Force WASM to re-sync images from the imported bundle */
                 updateWasmPreview();
+                /* Drive the imported layout: refresh the running demo for its
+                 * channels, or auto-start it (so a marketplace open lands on a
+                 * live, animated dashboard). */
+                if (typeof _simActive !== 'undefined') {
+                    if (_simActive) {
+                        _simSyncToLayout();
+                    } else if (currentScreenMode !== 'splash' && typeof toggleSimulation === 'function') {
+                        window._demoAutoStarted = true;
+                        setTimeout(() => { try { if (!_simActive) toggleSimulation(); } catch (e) {} }, 300);
+                    }
+                }
                 await fetchLayoutsKeepCurrent();
                 const parts = [];
                 if (images.length > 0) parts.push(`${uploadedImages}/${images.length} images`);
@@ -11793,6 +11849,9 @@
             } catch (e) {
                 showToast('Marketplace import failed: ' + (e.message || e), 'error');
                 console.error('Marketplace import:', e);
+                /* The default load was skipped for the import — fall back to it so
+                 * a failed import doesn't leave the studio blank. */
+                try { if (!currentLayout || !(currentLayout.widgets && currentLayout.widgets.length)) await loadLayout('default'); } catch (_e) {}
             }
         }
 
@@ -12429,6 +12488,7 @@
                         w.config.bar_alerts_enabled = (lo !== mn || hi !== mx);
                     }
                 });
+                _seedMissingSignals(currentLayout);
                 convertWidgetColors(currentLayout.widgets, rgb565to888);
                 _editingActive = false;
                 selectedIndex = -1; selectedIndices = new Set();
@@ -12445,6 +12505,7 @@
                 try { await RDM.setActiveLayout(name); } catch (e) { }
                 /* Update dropdown to show the new layout */
                 layoutSelect.value = name;
+                _simSyncToLayout();   /* drive the new layout's channels if the demo is running */
                 updateWasmPreview();
             } catch (e) { updateStatus(`Error loading ${name}`, true); }
         }
