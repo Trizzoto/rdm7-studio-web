@@ -1138,7 +1138,7 @@
         }
 
         /* ── Channels modal (list + detail) ── */
-        #channelsModal2 { display:none; position:fixed; inset:0; z-index:9999; background:rgba(10,10,10,0.8); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
+        #channelsModal2 { display:none; position:fixed; inset:0; z-index:10050; background:rgba(10,10,10,0.8); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
         .ch2-shell { background:var(--bg, #1a1a1a); border:1px solid var(--border); border-radius:var(--radius-lg, 12px); width:760px; max-width:96vw; height:560px; max-height:92vh; display:flex; flex-direction:column; box-shadow:var(--shadow-md); overflow:hidden; }
         .ch2-top { display:flex; align-items:center; gap:10px; padding:13px 18px; border-bottom:1px solid var(--border); }
         .ch2-title { font-weight:600; font-size:15px; color:var(--text); }
@@ -2839,7 +2839,7 @@
     </div>
 
     <!-- Assign Channel Modal (channel model: pick from the layout's channels) -->
-    <div id="channelPickModal" onclick="closeChannelPicker()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10,10,10,0.85); backdrop-filter:blur(8px); z-index:2000; align-items:center; justify-content:center;">
+    <div id="channelPickModal" onclick="closeChannelPicker()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10,10,10,0.85); backdrop-filter:blur(8px); z-index:10050; align-items:center; justify-content:center;">
         <div class="signal-modal-content" onclick="event.stopPropagation()" style="width:min(440px, 95vw); max-height:min(560px, 90vh); display:flex; flex-direction:column;">
             <div class="signal-modal-header">
                 <span>Assign Channel</span>
@@ -6697,7 +6697,23 @@
                 const sizeHint = `${def.defW}x${def.defH}`;
                 item.innerHTML = `<span class="palette-icon" style="color:var(--text-muted)">${icon}</span><span>${def.displayName || type}</span><span class="palette-size-hint">${sizeHint}</span>`;
                 item.onclick = () => addWidget(type);
-                item.ontouchend = (e) => { e.preventDefault(); addWidget(type); };
+                /* Touch: only add on a genuine tap. If the finger moved past a
+                 * small threshold the gesture was a scroll of the palette, so
+                 * swallow it — otherwise every scroll-release dropped a widget. */
+                let _tStartX = 0, _tStartY = 0, _tMoved = false;
+                item.addEventListener('touchstart', (e) => {
+                    const t = e.touches[0]; if (!t) return;
+                    _tStartX = t.clientX; _tStartY = t.clientY; _tMoved = false;
+                }, { passive: true });
+                item.addEventListener('touchmove', (e) => {
+                    const t = e.touches[0]; if (!t) return;
+                    if (Math.abs(t.clientX - _tStartX) > 10 || Math.abs(t.clientY - _tStartY) > 10) _tMoved = true;
+                }, { passive: true });
+                item.addEventListener('touchend', (e) => {
+                    if (_tMoved) return;          /* was a scroll — ignore */
+                    e.preventDefault();           /* tap — add once, suppress the synthetic click */
+                    addWidget(type);
+                });
                 item.setAttribute('role', 'button');
                 item.setAttribute('tabindex', '0');
                 paletteList.appendChild(item);
@@ -8906,17 +8922,20 @@
         function _simLoop(timestamp) {
             if (!_simActive) return;
             const elapsed = timestamp - _simStartTime;
+            const nowMs = Date.now();
             if (_demoMode) {
                 const tSec = elapsed / 1000;
                 const st = _demoState(tSec % _demoCycleLen());
                 const warm = Math.min(1, tSec / 40);
                 for (const [name, cfg] of Object.entries(_simConfigs)) {
+                    if (_testHolds(name, nowMs)) continue;   /* live test control wins */
                     let v = _demoValueFor(name, st, warm, tSec);
                     if (v === null) v = _simCalcValue(cfg, elapsed);
                     if (v !== null) injectWasmSignal(name, v);
                 }
             } else {
                 for (const [name, cfg] of Object.entries(_simConfigs)) {
+                    if (_testHolds(name, nowMs)) continue;   /* live test control wins */
                     const val = _simCalcValue(cfg, elapsed);
                     if (val !== null) injectWasmSignal(name, val);
                 }
@@ -9083,6 +9102,8 @@
         /* ── Per-widget test value injection ── */
         const _testValues = {};  /* signalName → value (tracks active test controls) */
         const _testLastSend = {}; /* signalName → timestamp (throttle) */
+        const _testTouchedAt = {}; /* signalName → last test-interaction timestamp */
+        const _TEST_HOLD_MS = 3000; /* test value dominates the demo for this long after the last action */
         const TOGGLE_TEST_TYPES = new Set(['warning', 'toggle', 'button', 'indicator']);
 
         function _getWidgetSignalName(w) {
@@ -9108,6 +9129,7 @@
         function setTestValue(signalName, value) {
             _testValues[signalName] = value;
             const now = Date.now();
+            _testTouchedAt[signalName] = now;   /* mark live so it wins over the demo */
             if (!_testLastSend[signalName] || now - _testLastSend[signalName] >= 80) {
                 _doInject(signalName, value);
                 _testLastSend[signalName] = now;
@@ -9116,10 +9138,25 @@
         function clearTestValue(signalName) {
             delete _testValues[signalName];
             delete _testLastSend[signalName];
+            delete _testTouchedAt[signalName];
         }
         function clearAllTestValues() {
             for (const k of Object.keys(_testValues)) delete _testValues[k];
             for (const k of Object.keys(_testLastSend)) delete _testLastSend[k];
+            for (const k of Object.keys(_testTouchedAt)) delete _testTouchedAt[k];
+        }
+        /* True while a channel's test control should override the demo: its value
+         * was touched within the last _TEST_HOLD_MS. Re-injects the held value so
+         * the demo loop can't stomp it. After the hold lapses the override is
+         * dropped and the channel reverts to the demo. */
+        function _testHolds(name, nowMs) {
+            if (_testValues[name] === undefined) return false;
+            if (nowMs - (_testTouchedAt[name] || 0) < _TEST_HOLD_MS) {
+                injectWasmSignal(name, parseFloat(_testValues[name]));
+                return true;
+            }
+            clearTestValue(name);   /* expired → let the demo take this channel back */
+            return false;
         }
         function _doInject(signalName, value) {
             injectWasmSignal(signalName, parseFloat(value));
