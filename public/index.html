@@ -7941,6 +7941,29 @@
             }, 250); // 250ms debounce
         }
 
+        /* Should a field gated by `enabledBy` be shown? The gate's parent field
+         * may default to `true` yet be absent from a loaded layout (stored only
+         * when toggled), in which case w.config[key] is undefined. Falling back
+         * to a blanket `false` hid the extras on freshly-loaded layouts until the
+         * parent was toggled off→on; fall back to the PARENT field's own default
+         * instead so the children match how the parent toggle renders. An
+         * optional `overrides` object (rule THEN-blocks) takes precedence. */
+        function _enabledByGateOpen(enabledBy, cfg, fields, overrides) {
+            const negate = enabledBy.startsWith('!');
+            const key = negate ? enabledBy.slice(1) : enabledBy;
+            let parentVal;
+            if (overrides && Object.prototype.hasOwnProperty.call(overrides, key)) {
+                parentVal = overrides[key];
+            } else if (cfg && cfg[key] !== undefined) {
+                parentVal = cfg[key];
+            } else {
+                const pdef = (fields || []).find(ff => ff.name === key);
+                parentVal = pdef ? pdef.def : false;
+            }
+            parentVal = !!parentVal;
+            return negate ? !parentVal : parentVal;
+        }
+
         function renderFieldHTML(f, val, disabledAttr) {
             let html = `<div class="field"><label>${f.label}</label>`;
             if (f.type === 'select') {
@@ -8246,12 +8269,7 @@
 
                 dataFields.forEach(f => {
                     const val = w.config[f.name] !== undefined ? w.config[f.name] : f.def;
-                    if (f.enabledBy) {
-                        const negate = f.enabledBy.startsWith('!');
-                        const key = negate ? f.enabledBy.slice(1) : f.enabledBy;
-                        const parentVal = w.config[key] !== undefined ? w.config[key] : false;
-                        if (negate ? parentVal : !parentVal) return;
-                    }
+                    if (f.enabledBy && !_enabledByGateOpen(f.enabledBy, w.config, def.fields)) return;
                     html += renderFieldHTML(f, val, disabledAttr);
                 });
 
@@ -8289,12 +8307,7 @@
                 html += `<details class="inspector-accordion" open><summary>Appearance${badgeHtml}</summary><div class="accordion-body">`;
                 appearFields.forEach(f => {
                     const val = w.config[f.name] !== undefined ? w.config[f.name] : f.def;
-                    if (f.enabledBy) {
-                        const negate = f.enabledBy.startsWith('!');
-                        const key = negate ? f.enabledBy.slice(1) : f.enabledBy;
-                        const parentVal = w.config[key] !== undefined ? w.config[key] : false;
-                        if (negate ? parentVal : !parentVal) return;
-                    }
+                    if (f.enabledBy && !_enabledByGateOpen(f.enabledBy, w.config, def.fields)) return;
                     html += renderFieldHTML(f, val, disabledAttr);
                 });
                 html += `</div></details>`;
@@ -8321,12 +8334,7 @@
                 const renderedInline = new Set();
                 alertFields.forEach(f => {
                     const val = w.config[f.name] !== undefined ? w.config[f.name] : f.def;
-                    if (f.enabledBy) {
-                        const negate = f.enabledBy.startsWith('!');
-                        const key = negate ? f.enabledBy.slice(1) : f.enabledBy;
-                        const parentVal = w.config[key] !== undefined ? w.config[key] : false;
-                        if (negate ? parentVal : !parentVal) return;
-                    }
+                    if (f.enabledBy && !_enabledByGateOpen(f.enabledBy, w.config, def.fields)) return;
                     /* Inline toggle group: render all fields sharing the same inline key as one compact row */
                     if (f.inline) {
                         if (renderedInline.has(f.inline)) return;
@@ -8383,12 +8391,7 @@
                 /* THEN: full appearance fields */
                 html += `<div style="font-size:11px; font-weight:600; color:#e67e22; margin:8px 0 4px;">THEN change:</div>`;
                 appearFields.forEach(f => {
-                    if (f.enabledBy) {
-                        const negate = f.enabledBy.startsWith('!');
-                        const key = negate ? f.enabledBy.slice(1) : f.enabledBy;
-                        const parentVal = (overrides[key] !== undefined) ? overrides[key] : (w.config[key] !== undefined ? w.config[key] : false);
-                        if (negate ? parentVal : !parentVal) return;
-                    }
+                    if (f.enabledBy && !_enabledByGateOpen(f.enabledBy, w.config, def.fields, overrides)) return;
                     const isOverridden = overrides.hasOwnProperty(f.name);
                     const val = isOverridden ? overrides[f.name] : (w.config[f.name] !== undefined ? w.config[f.name] : f.def);
                     const borderStyle = isOverridden ? 'border-left: 3px solid #e67e22; padding-left: 5px;' : '';
