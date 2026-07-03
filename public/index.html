@@ -4181,7 +4181,17 @@
                 await _syncWasmImages();
                 if (_wasmCrashed) return;
                 const json = buildLayoutJson();
-                wasmModule.ccall('load_layout_json', null, ['string'], [json]);
+                /* Pass the JSON via heap, not ccall's 'string' arg — string args
+                 * are stack-allocated and large layouts overflow the WASM stack. */
+                const jsonLen = wasmModule.lengthBytesUTF8(json) + 1;
+                const jsonPtr = wasmModule._malloc(jsonLen);
+                if (!jsonPtr) throw new Error('WASM heap alloc failed for layout JSON (' + jsonLen + ' bytes)');
+                try {
+                    wasmModule.stringToUTF8(json, jsonPtr, jsonLen);
+                    wasmModule.ccall('load_layout_json', null, ['number'], [jsonPtr]);
+                } finally {
+                    wasmModule._free(jsonPtr);
+                }
             } catch(e) {
                 console.warn('[WASM] Preview update failed:', e);
                 if (e instanceof WebAssembly.RuntimeError) {
